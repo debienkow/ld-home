@@ -6,7 +6,7 @@ import {
 import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
 import { placeField } from './places.js';
-import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig } from './gcal.js';
+import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld } from './gcal.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -170,7 +170,13 @@ function openEvSettings() {
           await new Promise((r) => setTimeout(r, 600));
           const r = await syncNow();
           gmsg.textContent = r.ok ? `Abgleich fertig (${r.changes} Änderungen).` : `Abgleich fehlgeschlagen: ${r.error || 'unbekannt'}`;
-        } }, 'Jetzt abgleichen')));
+        } }, 'Jetzt abgleichen'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
+          await saveG(); gmsg.textContent = 'Lade alte Termine …';
+          await new Promise((r) => setTimeout(r, 600));
+          const r = await importOld();
+          gmsg.textContent = r.ok ? `${r.count} alte Termine geladen.` : r.error === 'action' ? 'Skript veraltet: neue Version im Apps-Script bereitstellen.' : `Fehlgeschlagen: ${r.error || 'unbekannt'}`;
+        } }, 'Alte Termine laden')));
   });
 }
 

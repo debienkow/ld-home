@@ -66,6 +66,22 @@ export async function syncNow() {
   } finally { running = false; }
 }
 
+/* Einmalig: alte Termine (vor dem Abgleichfenster) aus allen eigenen Kalendern des Kontos holen */
+export async function importOld() {
+  if (!gcalReady() || !state.user) return { ok: false, error: 'nicht verbunden' };
+  try {
+    const { events: gevs } = await call('listAll', { from: '2000-01-01', to: addDays(todayIso(), -31) });
+    const have = new Set(state.ev.events.filter((e) => e.gid).map((e) => e.gid));
+    let n = 0;
+    for (const g of gevs) {
+      if (have.has(g.gid)) continue;
+      await saveEvent(idFor(g.gid), { title: g.title, categoryId: 'sonstiges', start: g.start, end: g.end, allDay: g.allDay, startTime: g.startTime, endTime: g.endTime, location: g.location, note: g.note, important: false, participants: ['dudi', 'logi'], vacation: [], rsvp: {}, gid: g.gid, gsyncedAt: g.updated, createdBy: state.user.uid, createdAt: Date.now() });
+      n++;
+    }
+    return { ok: true, count: n };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
+}
+
 export const saveGcalConfig = (cfg) => setDoc(doc(db, 'config', 'events'), { gcal: cfg }, { merge: true });
 
 let started = false;

@@ -1,4 +1,4 @@
-/* LD Home: Google-Kalender-Sync v1.0 (16.11.2026) */
+/* LD Home: Google-Kalender-Sync v1.1 (17.11.2026) */
 const TOKEN = 'HIER-EIN-GEHEIMWORT-EINTRAGEN';
 const CAL_NAME = 'LD Home';
 const TZ = 'Europe/Berlin';
@@ -45,6 +45,11 @@ function doPost(req) {
   if (r.action === 'list') {
     const list = cal.getEvents(d_(r.from), d_(r.to)).map(ev_);
     return out_({ ok: true, events: list });
+  }
+  if (r.action === 'listAll') {
+    const all = [];
+    CalendarApp.getAllOwnedCalendars().forEach((c) => { if (c.getName() !== CAL_NAME) c.getEvents(d_(r.from), d_(r.to)).forEach((e) => all.push(ev_(e))); });
+    return out_({ ok: true, events: all });
   }
   if (r.action === 'upsert') {
     const p = r.event;
