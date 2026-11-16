@@ -29,7 +29,7 @@ window.addEventListener('popstate', () => {
   if (top) top(true);
 });
 
-export function openSheet(title, buildContent) {
+export function openSheet(title, buildContent, onClose) {
   let closed = false;
   const close = (viaBack) => {
     if (closed) return;
@@ -37,6 +37,7 @@ export function openSheet(title, buildContent) {
     const i = sheetStack.indexOf(close);
     if (i >= 0) sheetStack.splice(i, 1);
     backdrop.remove();
+    if (onClose) onClose();
     if (!sheetStack.length) document.body.classList.remove('no-scroll');
     if (viaBack !== true) { ignorePops++; history.back(); }
   };

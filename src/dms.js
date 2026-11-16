@@ -1,12 +1,14 @@
 /* Tab DMS: Dokumente fotografieren, ablegen, durchsuchen */
 import { confirmSheet, el, openSheet, uid } from './dom.js';
-import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, recognize } from './dmslogic.js';
+import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages, recognize } from './dmslogic.js';
+import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
 import { todayIso } from './evlogic.js';
 
 const cats = () => state.dms.config.categories || DEFAULT_DMS_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
 const dateText = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const dataToFile = (d) => ({ type: 'image/jpeg', name: 'foto.jpg', dataUrl: d });
 const tagsOf = (t) => String(t || '').split(',').map((x) => x.trim()).filter(Boolean);
 
 export const recentDocs = (n) => [...state.dms.docs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, n);
@@ -14,6 +16,36 @@ export const recentDocs = (n) => [...state.dms.docs].sort((a, b) => (b.createdAt
 function openPageView(img, n) {
   openSheet(`Seite ${n}`, (body) => body.append(el('img', { src: img, class: 'page-full', alt: `Seite ${n}` })));
 }
+
+/* Live-Kamera: mehrere Seiten hintereinander */
+function openCamera(onShot, onDone) {
+  openSheet('Seiten aufnehmen', (body, close) => {
+    const video = el('video', { class: 'cam', autoplay: true, playsinline: true, muted: true });
+    const count = el('p', { class: 'hint' }, 'Halte das Dokument in den Rahmen und tippe auf Aufnehmen.');
+    const msg = el('p', { class: 'form-info bad' });
+    let n = 0;
+    let stream = null;
+    const shoot = el('button', { class: 'btn primary', type: 'button', onclick: () => {
+      if (!video.videoWidth) return;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+      n++;
+      count.textContent = `${n} ${n === 1 ? 'Seite' : 'Seiten'} aufgenommen. Weitere aufnehmen oder „Fertig“ tippen.`;
+      video.classList.add('flash'); setTimeout(() => video.classList.remove('flash'), 120);
+      onShot(c.toDataURL('image/jpeg', 0.9));
+    } }, '📸 Aufnehmen');
+    body.append(video, count, msg, el('div', { class: 'row' }, shoot, el('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Fertig')));
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false });
+        video.srcObject = stream;
+      } catch (e) { msg.textContent = 'Kein Zugriff auf die Kamera. Bitte Zugriff erlauben oder „Einzelfoto“ nutzen.'; shoot.disabled = true; }
+    })();
+    camStop = () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
+  }, () => { camStop(); onDone(); });
+}
+let camStop = () => {};
 
 /* Dokument anlegen oder bearbeiten */
 export function openDocSheet(doc) {
@@ -45,15 +77,23 @@ export function openDocSheet(doc) {
         } }, '✕'))));
     };
 
-    const addFiles = async (files) => {
+    const addFiles = async (files, ocr = true) => {
       for (const f of files) {
         status.textContent = 'Bild wird verarbeitet …';
-        try { pages.push({ img: await compress(f, 1700), isNew: true }); } catch (e) { err.textContent = 'Ein Bild konnte nicht gelesen werden.'; }
+        try {
+          if (f.type === 'application/pdf' || (f.name || '').toLowerCase().endsWith('.pdf')) {
+            const r = await pdfToImages(f, 25, (i, n) => (status.textContent = `PDF wird gelesen: Seite ${i} von ${n} …`));
+            r.images.forEach((img) => pages.push({ img, isNew: true }));
+            if (r.text.length > 20) { text.value = text.value.trim() ? `${text.value}\n\n${r.text}` : r.text; ocrText = text.value; if (!touchedTitle && !title.value.trim()) title.value = guessTitle(r.text); pdfText = true; }
+            if (r.cut) err.textContent = 'Das PDF hat mehr als 25 Seiten, es wurden die ersten 25 übernommen.';
+          } else pages.push({ img: await compress(f.dataUrl || f, 1700), isNew: true });
+        } catch (e) { err.textContent = 'Eine Datei konnte nicht gelesen werden.'; }
         drawStrip();
       }
       status.textContent = '';
-      if (pages.some((p) => p.isNew) && !text.value.trim()) runOcr(true);
+      if (ocr && pages.some((p) => p.isNew) && !text.value.trim() && !pdfText) runOcr(true);
     };
+    let pdfText = false;
     const runOcr = async (auto) => {
       if (busy || !pages.length) return;
       busy = true;
@@ -72,7 +112,7 @@ export function openDocSheet(doc) {
     };
 
     const camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
-    const gallery = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
+    const gallery = el('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
 
     const save = async () => {
       if (busy) return (err.textContent = 'Bitte kurz warten, die Texterkennung läuft noch.');
@@ -86,7 +126,7 @@ export function openDocSheet(doc) {
       try {
         await saveDms(doc && doc.id, {
           title: title.value.trim(), categoryId: cat.value, tags: tagsOf(tags.value), date: date.value || todayIso(),
-          note: note.value.trim(), text: text.value, pageCount: pages.length, thumb: await compress(pages[0].img, 220, 0.6)
+          note: note.value.trim(), text: text.value, pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
       } catch (e) { status.textContent = ''; err.textContent = 'Speichern hat nicht geklappt. Internet prüfen und nochmal versuchen.'; }
@@ -94,13 +134,26 @@ export function openDocSheet(doc) {
 
     body.append(
       el('div', { class: 'row' },
-        el('button', { class: 'btn primary', type: 'button', onclick: () => camera.click() }, '📷 Foto aufnehmen'),
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => gallery.click() }, '🖼 Aus Galerie')),
+        el('button', { class: 'btn primary', type: 'button', onclick: () => {
+          const shots = [];
+          openCamera((d) => shots.push(d), async () => { if (shots.length) { await addFiles(shots.map((d) => dataToFile(d)), false); if (!text.value.trim()) runOcr(true); } });
+        } }, '📷 Seiten aufnehmen'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => gallery.click() }, '🖼 Galerie / PDF')),
+      el('button', { class: 'link-btn', type: 'button', onclick: () => camera.click() }, 'Einzelfoto mit Kamera-App'),
       camera, gallery, strip, status,
       el('label', null, 'Titel', title), el('label', null, 'Kategorie', cat),
       el('label', null, 'Stichworte', tags), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
       el('label', null, 'Erkannter Text', text),
       el('button', { class: 'btn ghost', type: 'button', onclick: () => runOcr(false) }, 'Text neu erkennen'),
+      ...(doc ? [el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
+        if (!pages.length) return;
+        const blob = await imagesToPdf(pages.map((p) => p.img));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${(title.value || 'dokument').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'dokument'}.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      } }, '📥 Als PDF herunterladen')] : []),
       err,
       el('div', { class: 'row between' },
         doc ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
@@ -158,9 +211,11 @@ export function mountDms(root) {
     const docs = state.dms.docs
       .filter((d) => (!view.cat || d.categoryId === view.cat) && (!q || `${d.title} ${(d.tags || []).join(' ')} ${d.note || ''} ${d.text || ''}`.toLowerCase().includes(q)))
       .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+    usage.replaceChildren(usageCard());
     list.replaceChildren(...(docs.length ? docs.map(docRow) : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
   }
-  root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, list, fab);
+  const usage = el('div');
+  root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, list, usage, fab);
   drawChips(); drawList();
   return subscribe(() => { drawChips(); drawList(); });
 }

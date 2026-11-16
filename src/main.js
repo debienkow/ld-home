@@ -12,6 +12,7 @@ import { mountShopping } from './shopping.js';
 import { mountFinance } from './finance.js';
 import { mountEvents } from './events.js';
 import { mountDms } from './dms.js';
+import { startGcalSync } from './gcal.js';
 
 const root = document.getElementById('app');
 
@@ -92,6 +93,7 @@ onAuthStateChanged(auth, (user) => {
   } else {
     startStore(user);
     renderShell();
+    startGcalSync();
   }
 });
 

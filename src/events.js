@@ -5,7 +5,8 @@ import {
 } from './evlogic.js';
 import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
-import { navLink, placeField } from './places.js';
+import { placeField } from './places.js';
+import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig } from './gcal.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -82,12 +83,14 @@ export function openEventSheet(event, preset) {
       const rsvp = { ...(e.rsvp || {}) };
       for (const k of PEOPLE) if (!participants.includes(k)) delete rsvp[k];
       if (!event && participants.includes(me)) rsvp[me] = 'yes';
-      await saveEvent(event && event.id, {
+      const payload = {
         title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: allDay.checked,
         startTime: allDay.checked ? '' : startTime.value, endTime: allDay.checked ? '' : endTime.value,
         location: place.text.trim(), lat: place.lat, lon: place.lon, note: note.value.trim(), important: important.checked,
         participants, vacation: PEOPLE.filter((k) => vac[k].checked && participants.includes(k)), rsvp
-      });
+      };
+      const savedId = await saveEvent(event && event.id, payload);
+      pushEvent(savedId, { ...payload, gid: event && event.gid });
       if (preset && preset.fromIdea) await removeIdea(preset.fromIdea);
       close();
     };
@@ -110,7 +113,7 @@ export function openEventSheet(event, preset) {
         el('a', { class: 'btn ghost link', href: googleLink(e), target: '_blank', rel: 'noopener' }, '📆 Google Kalender'))] : []),
       el('div', { class: 'row between' },
         event ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEvent(event.id); close(); }
+          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEvent(event.id); pushDelete(event.gid); close(); }
         } }, 'Löschen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: save }, 'Speichern'))
     );
@@ -148,7 +151,26 @@ function openEvSettings() {
         el('button', { class: 'icon-btn', type: 'button', onclick: () => { if (list.length > 1) { list.splice(i, 1); draw(); } } }, '🗑'))),
       el('button', { class: 'btn ghost', type: 'button', onclick: () => { list.push({ id: 'k' + uid(), name: 'Neu', icon: '📌', color: '#9aa7c2' }); draw(); } }, '+ Kategorie'));
     draw();
-    body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => { await saveEvConfig({ categories: list }); close(); } }, 'Speichern')));
+    const g = gcalConfig() || {};
+    const url = el('input', { type: 'text', value: g.url || '', placeholder: 'https://script.google.com/macros/s/…/exec', autocomplete: 'off' });
+    const token = el('input', { type: 'text', value: g.token || '', placeholder: 'Geheimwort aus dem Skript', autocomplete: 'off' });
+    const gmsg = el('p', { class: 'hint' }, gcalReady() ? 'Verbunden. Der Abgleich läuft beim Öffnen und alle 5 Minuten.' : 'Noch nicht verbunden.');
+    const saveG = async () => { await saveGcalConfig({ url: url.value.trim(), token: token.value.trim() }); };
+    body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => { await saveEvConfig({ categories: list }); close(); } }, 'Kategorien speichern')),
+      el('h3', null, 'Google Kalender'),
+      el('p', { class: 'hint' }, 'Verbindet eure Termine mit dem Google-Kalender „LD Home“. Einrichtung: siehe Anleitung im Projektordner.'),
+      el('label', null, 'Web-App-URL', url), el('label', null, 'Geheimwort', token), gmsg,
+      el('div', { class: 'row' },
+        el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
+          await saveG(); gmsg.textContent = 'Teste …';
+          try { await new Promise((r) => setTimeout(r, 600)); await gcalPing(); gmsg.textContent = 'Verbindung funktioniert.'; } catch (e) { gmsg.textContent = 'Verbindung fehlgeschlagen: URL und Geheimwort prüfen.'; }
+        } }, 'Verbindung testen'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
+          await saveG(); gmsg.textContent = 'Gleiche ab …';
+          await new Promise((r) => setTimeout(r, 600));
+          const r = await syncNow();
+          gmsg.textContent = r.ok ? `Abgleich fertig (${r.changes} Änderungen).` : `Abgleich fehlgeschlagen: ${r.error || 'unbekannt'}`;
+        } }, 'Jetzt abgleichen')));
   });
 }
 

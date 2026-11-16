@@ -41,7 +41,7 @@ export async function importFile(file) {
 /* Alle Daten als JSON-Datei herunterladen */
 export async function exportAll() {
   const out = { exportedAt: new Date().toISOString() };
-  for (const name of ['items', 'catalog', 'fin_entries', 'fin_recurring', 'config', 'profiles']) {
+  for (const name of ['items', 'catalog', 'fin_entries', 'fin_recurring', 'events', 'event_ideas', 'dms_docs', 'dms_pages', 'config', 'profiles']) {
     const snap = await getDocs(collection(db, name));
     out[name] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   }

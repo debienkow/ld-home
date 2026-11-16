@@ -226,8 +226,11 @@ export async function saveProfilePhoto(dataUrl) {
 
 export { getDoc };
 
-export const saveEvent = (id, data) =>
-  id ? setDoc(doc(db, 'events', id), data, { merge: true }) : addDoc(collection(db, 'events'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
+export const saveEvent = async (id, data) => {
+  if (id) { await setDoc(doc(db, 'events', id), data, { merge: true }); return id; }
+  const r = await addDoc(collection(db, 'events'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
+  return r.id;
+};
 export const removeEvent = (id) => deleteDoc(doc(db, 'events', id));
 export const saveIdea = (id, data) =>
   id ? setDoc(doc(db, 'event_ideas', id), data, { merge: true }) : addDoc(collection(db, 'event_ideas'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });

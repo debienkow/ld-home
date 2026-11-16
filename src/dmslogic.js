@@ -56,3 +56,65 @@ export async function recognize(dataUrls, onProgress) {
 }
 
 export const guessTitle = (text) => (text.split('\n').map((l) => l.trim()).find((l) => l.length > 3) || '').slice(0, 60);
+
+/* PDF -> Seitenbilder (und eingebetteter Text, falls vorhanden) */
+export async function pdfToImages(file, maxPages = 25, onProgress) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const worker = (await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = worker;
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const images = [];
+  let text = '';
+  const n = Math.min(pdf.numPages, maxPages);
+  for (let i = 1; i <= n; i++) {
+    onProgress && onProgress(i, n);
+    const page = await pdf.getPage(i);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: Math.min(3, 1700 / Math.max(base.width, base.height)) });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    images.push(await compress(canvas.toDataURL('image/jpeg', 0.85), 1700));
+    const tc = await page.getTextContent();
+    text += (text ? '\n\n' : '') + tc.items.map((x) => x.str).join(' ').replace(/\s+/g, ' ').trim();
+  }
+  return { images, text: text.trim(), cut: pdf.numPages > n };
+}
+
+/* Einfaches PDF aus JPEG-Seiten */
+export async function imagesToPdf(dataUrls) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const offsets = [];
+  let len = 0;
+  const push = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; chunks.push(b); len += b.length; };
+  const obj = (n, body) => { offsets[n] = len; push(`${n} 0 obj\n`); push(body); push('\nendobj\n'); };
+  const dims = await Promise.all(dataUrls.map((u) => new Promise((res) => { const i = new Image(); i.onload = () => res([i.width, i.height]); i.src = u; })));
+  push('%PDF-1.4\n');
+  const kids = dataUrls.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${dataUrls.length} >>`);
+  dataUrls.forEach((u, i) => {
+    const [w, h] = dims[i];
+    const jpg = Uint8Array.from(atob(u.split(',')[1]), (c) => c.charCodeAt(0));
+    const page = 3 + i * 3;
+    const pw = Math.round(w * 0.5), ph = Math.round(h * 0.5);
+    obj(page, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Contents ${page + 1} 0 R /Resources << /XObject << /Im ${page + 2} 0 R >> >> >>`);
+    const content = `q ${pw} 0 0 ${ph} 0 0 cm /Im Do Q`;
+    obj(page + 1, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    offsets[page + 2] = len;
+    push(`${page + 2} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+    push(jpg);
+    push('\nendstream\nendobj\n');
+  });
+  const count = 3 + dataUrls.length * 3;
+  const xref = len;
+  push(`xref\n0 ${count}\n0000000000 65535 f \n`);
+  for (let i = 1; i < count; i++) push(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
+  push(`trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(chunks, { type: 'application/pdf' });
+}
