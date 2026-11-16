@@ -6,6 +6,7 @@ import { db } from './firebase.js';
 import { USERS } from './config.js';
 import { BUILTIN_CATALOG, DEFAULT_CATEGORIES, DEFAULT_STORES } from './catalog.js';
 import * as FL from './finlogic.js';
+import { DEFAULT_EVENT_CATEGORIES } from './evlogic.js';
 
 export const state = {
   user: null,
@@ -22,6 +23,11 @@ export const state = {
       rules: FL.DEFAULT_RULES,
       salaries: { logi: 0, dudi: 0 }
     }
+  },
+  ev: {
+    events: [],
+    ideas: [],
+    config: { categories: DEFAULT_EVENT_CATEGORIES }
   },
   online: navigator.onLine
 };
@@ -122,6 +128,25 @@ export function startStore(user) {
     })
   );
 
+  unsubs.push(
+    onSnapshot(collection(db, 'events'), (snap) => {
+      state.ev.events = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    })
+  );
+  unsubs.push(
+    onSnapshot(collection(db, 'event_ideas'), (snap) => {
+      state.ev.ideas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    })
+  );
+  unsubs.push(
+    onSnapshot(doc(db, 'config', 'events'), (snap) => {
+      if (snap.exists()) state.ev.config = { ...state.ev.config, ...snap.data() };
+      emit();
+    })
+  );
+
   const net = () => {
     state.online = navigator.onLine;
     emit();
@@ -185,3 +210,11 @@ export async function saveProfilePhoto(dataUrl) {
 }
 
 export { getDoc };
+
+export const saveEvent = (id, data) =>
+  id ? setDoc(doc(db, 'events', id), data, { merge: true }) : addDoc(collection(db, 'events'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
+export const removeEvent = (id) => deleteDoc(doc(db, 'events', id));
+export const saveIdea = (id, data) =>
+  id ? setDoc(doc(db, 'event_ideas', id), data, { merge: true }) : addDoc(collection(db, 'event_ideas'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
+export const removeIdea = (id) => deleteDoc(doc(db, 'event_ideas', id));
+export const saveEvConfig = (patch) => setDoc(doc(db, 'config', 'events'), patch, { merge: true });

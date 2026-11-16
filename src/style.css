@@ -152,3 +152,22 @@ select { appearance: none; -webkit-appearance: none; padding-right: 44px; backgr
 /* Schnellauswahl */
 .quick { display: flex; gap: 8px; flex-wrap: wrap; }
 .note-card { border-left: 4px solid var(--primary); }
+
+/* Events */
+.ev-row.important { border-left: 4px solid #f5c04a; }
+.rsvp-badges { display: flex; gap: 4px; flex: none; }
+.rsvp { font-size: .75rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--muted); }
+.rsvp-yes { background: #1f5c43; color: #bff5da; }
+.rsvp-no { background: #6b2a2a; color: #ffd0d0; }
+.rsvp-maybe { background: #5f4a14; color: #ffe7a0; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 0; }
+.cal-head .icon-btn { font-size: 1.6rem; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-wd { text-align: center; font-size: .75rem; color: var(--muted); padding: 4px 0; }
+.cal-cell { display: grid; justify-items: center; align-content: start; gap: 2px; aspect-ratio: 1; padding: 6px 0 0; border: 0; border-radius: 12px; background: var(--card); }
+.cal-cell.empty { background: none; }
+.cal-cell.today { outline: 2px solid var(--primary); }
+.cal-cell.sel { background: var(--card-2); }
+.cal-dots { display: flex; gap: 2px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; display: block; }
+a.btn.link { text-decoration: none; text-align: center; color: inherit; }

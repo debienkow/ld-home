@@ -3,6 +3,7 @@ import { el } from './dom.js';
 import { state, subscribe } from './store.js';
 import { fmt } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
+import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
 
 const soon = (title, icon, text) =>
   el('section', { class: 'card muted' },
@@ -30,7 +31,11 @@ export function mountHome(root, go) {
         el('p', { class: 'saldo-text' }, saldoText().text),
         saldoText().cents ? el('p', { class: 'big-number' }, fmt(saldoText().cents)) : null,
         el('button', { class: 'btn primary wide', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
-      soon('Events', '📅', 'Kommt danach: gemeinsame Termine, Zu- und Absagen, Ideenliste.'),
+      el('section', { class: 'card' },
+        el('h2', { onclick: () => go('events') }, '📅 Events'),
+        ...(upcoming().filter(needsAnswer).length ? [el('p', { class: 'hint' }, `${upcoming().filter(needsAnswer).length} Einladung(en) warten auf deine Antwort`)] : []),
+        ...(upcoming(3).length ? upcoming(3).map((e) => eventRow(e)) : [el('p', { class: 'hint' }, 'Keine anstehenden Termine.')]),
+        el('button', { class: 'btn primary wide', onclick: () => openEventSheet() }, '+ Neuer Termin')),
       soon('Dokumente', '🗂', 'Kommt später: Dokumente fotografieren, ablegen und durchsuchen.')
     );
   }

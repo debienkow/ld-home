@@ -10,6 +10,7 @@ import { avatar, openProfile } from './profile.js';
 import { mountHome, mountSoon } from './home.js';
 import { mountShopping } from './shopping.js';
 import { mountFinance } from './finance.js';
+import { mountEvents } from './events.js';
 
 const root = document.getElementById('app');
 
@@ -64,7 +65,7 @@ function renderShell() {
     if (id === 'home') unmountTab = mountHome(main, go);
     else if (id === 'einkauf') unmountTab = mountShopping(main);
     else if (id === 'finanzen') unmountTab = mountFinance(main);
-    else if (id === 'events') unmountTab = mountSoon(main, '📅 Events', 'Kommt in einer späteren Ausbaustufe.');
+    else if (id === 'events') unmountTab = mountEvents(main);
     else unmountTab = mountSoon(main, '🗂 DMS', 'Kommt in einer späteren Ausbaustufe.');
   };
 
