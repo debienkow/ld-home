@@ -1,7 +1,7 @@
 /* Tab Events */
 import { confirmSheet, el, openSheet, swipeDelete, uid } from './dom.js';
 import {
-  addDays, covers, DEFAULT_EVENT_CATEGORIES, downloadIcs, endOf, googleLink, isoOf, parseIso, rangeText, RSVP, todayIso, workdays
+  addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso, workdays
 } from './evlogic.js';
 import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
@@ -39,11 +39,11 @@ export function eventRow(e, onclick) {
 /* Termin anlegen, ansehen, bearbeiten */
 export function openEventSheet(event, preset) {
   const me = myKey();
-  const e = event || { title: '', categoryId: 'treffen', start: todayIso(), end: '', allDay: true, startTime: '', endTime: '', location: '', note: '', important: false, participants: [...PEOPLE], vacation: [], ...(preset || {}) };
+  const e = event || { title: '', categoryId: 'treffen', start: todayIso(), end: '', allDay: false, startTime: '', endTime: '', location: '', note: '', important: false, participants: [...PEOPLE], vacation: [], ...(preset || {}) };
   openSheet(event ? e.title : 'Neuer Termin', (body, close) => {
     const title = el('input', { type: 'text', value: e.title, placeholder: 'z. B. Konzert' });
     const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: c.id === e.categoryId }, `${c.icon} ${c.name}`)));
-    const allDay = el('input', { type: 'checkbox', checked: e.allDay !== false });
+    const allDay = el('input', { type: 'checkbox', checked: !!e.allDay });
     const start = el('input', { type: 'date', value: e.start });
     const end = el('input', { type: 'date', value: endOf(e) });
     const startTime = el('input', { type: 'time', value: e.startTime || '' });
@@ -53,15 +53,11 @@ export function openEventSheet(event, preset) {
     const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
     const important = el('input', { type: 'checkbox', checked: !!e.important });
     const who = Object.fromEntries(PEOPLE.map((k) => [k, el('input', { type: 'checkbox', checked: parts(e).includes(k) })]));
-    const vac = Object.fromEntries(PEOPLE.map((k) => [k, el('input', { type: 'checkbox', checked: (e.vacation || []).includes(k) })]));
     const timesRow = el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Beginn (Uhrzeit)', startTime), el('label', { class: 'grow' }, 'Ende (Uhrzeit)', endTime));
-    const vacInfo = el('p', { class: 'hint' });
     const err = el('p', { class: 'form-info bad' });
 
     const refresh = () => {
       timesRow.classList.toggle('hidden', allDay.checked);
-      const n = workdays(start.value || e.start, (end.value && end.value >= start.value ? end.value : start.value) || e.start);
-      vacInfo.textContent = `Zählt ${n} ${n === 1 ? 'Werktag' : 'Werktage'} (Mo–Fr) als Urlaub.`;
     };
     [allDay, start, end].forEach((i) => i.addEventListener('change', refresh));
     start.addEventListener('change', () => { if (!end.value || end.value < start.value) end.value = start.value; });
@@ -87,7 +83,7 @@ export function openEventSheet(event, preset) {
         title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: allDay.checked,
         startTime: allDay.checked ? '' : startTime.value, endTime: allDay.checked ? '' : endTime.value,
         location: place.text.trim(), lat: place.lat, lon: place.lon, note: note.value.trim(), important: important.checked,
-        participants, vacation: PEOPLE.filter((k) => vac[k].checked && participants.includes(k)), rsvp
+        participants, vacation: (e.vacation || []).filter((k) => participants.includes(k)), rsvp
       };
       const savedId = await saveEvent(event && event.id, payload);
       pushEvent(savedId, { ...payload, gid: event && event.gid });
@@ -103,14 +99,9 @@ export function openEventSheet(event, preset) {
       el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Von', start), el('label', { class: 'grow' }, 'Bis', end)),
       timesRow, locField, el('label', null, 'Notiz', note),
       el('label', { class: 'toggle-row' }, el('span', null, '⭐ Wichtig'), important),
-      el('h3', null, 'Wer ist dabei?'),
+      el('h3', null, 'Wer ist eingeladen?'),
       ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', null, nameOfKey(k)), who[k])),
-      el('h3', null, 'Urlaubstage nehmen'),
-      ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', null, nameOfKey(k)), vac[k])), vacInfo,
       err,
-      ...(event ? [el('div', { class: 'row' },
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => downloadIcs({ ...e, id: event.id }) }, '📥 Kalender-Datei'),
-        el('a', { class: 'btn ghost link', href: googleLink(e), target: '_blank', rel: 'noopener' }, '📆 Google Kalender'))] : []),
       el('div', { class: 'row between' },
         event ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEvent(event.id); pushDelete(event.gid); close(); }
@@ -218,7 +209,7 @@ function renderCalendar(root, view) {
   for (let d = 1; d <= daysIn; d++) {
     const iso = isoOf(new Date(first.getFullYear(), first.getMonth(), d));
     const evs = state.ev.events.filter((e) => covers(e, iso));
-    cells.push(el('button', { class: 'cal-cell' + (iso === todayIso() ? ' today' : '') + (iso === view.day ? ' sel' : ''), onclick: () => { view.day = iso; view.redraw(); } },
+    cells.push(el('button', { class: 'cal-cell' + (iso === todayIso() ? ' today' : '') + (evs.length ? ' has-ev' : '') + (iso === view.day ? ' sel' : ''), onclick: () => { view.day = iso; view.redraw(); } },
       el('span', null, String(d)),
       el('span', { class: 'cal-dots' }, ...evs.slice(0, 3).map((e) => el('i', { style: { background: catOf(e.categoryId).color } })))));
   }
@@ -256,7 +247,7 @@ export function mountEvents(root) {
   const content = el('div');
   const ideaList = el('div');
   const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Termin', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day } : null)) }, '+');
-  const SUBS = [['kommend', 'Kommend'], ['kalender', 'Kalender'], ['ideen', 'Ideen']];
+  const SUBS = [['kommend', 'Übersicht'], ['kalender', 'Kalender'], ['ideen', 'Ideen']];
   function draw() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; draw(); } }, l)),
       el('button', { class: 'chip gear', onclick: openEvSettings, 'aria-label': 'Kategorien' }, '⚙︎'));

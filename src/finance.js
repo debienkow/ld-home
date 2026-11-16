@@ -183,58 +183,74 @@ const barChart = (series, labels, colors) => {
   return el('div', null, box, axis);
 };
 
-function renderOverview(root) {
+const chipRow = (opts, cur, pick) => el('div', { class: 'chips small' }, ...opts.map(([k, l]) => el('button', { class: 'chip' + (cur === k ? ' active' : ''), type: 'button', onclick: () => pick(k) }, l)));
+
+function monthsOf(p) {
+  const now = new Date();
+  if (/^\d{4}$/.test(p)) return Array.from({ length: 12 }, (_, i) => `${p}-${String(i + 1).padStart(2, '0')}`);
+  const n = parseInt(p, 10) || 12;
+  return Array.from({ length: n }, (_, i) => new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1).toLocaleDateString('sv-SE').slice(0, 7));
+}
+
+function renderOverview(root, view) {
   const { entries, recurring, config } = state.fin;
   const saldo = saldoText();
-  const now = new Date();
-  const months = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(d.toLocaleDateString('sv-SE').slice(0, 7));
-  }
+  const cur = todayStr().slice(0, 4);
+  const first = entries.reduce((a, x) => (x.date < a ? x.date : a), `${cur}-01-01`).slice(0, 4);
+  const years = [];
+  for (let y = Number(cur); y >= Number(first); y--) years.push(String(y));
+  const chartOpts = [['3', '3 Monate'], ['6', '6 Monate'], ['12', '12 Monate'], ...years.map((y) => [y, y])];
+  const catOpts = [['12', '12 Monate'], ...years.map((y) => [y, y])];
+  const cp = view.chartP || '12', kp = view.catP || cur;
+  const months = monthsOf(cp);
   const sum = (type, ym) => entries.filter((x) => !x.planned && x.type === type && monthOf(x.date) === ym).reduce((a, x) => a + x.cents, 0);
   const exp = months.map((m) => Math.max(0, sum('expense', m)) / 100);
   const inc = months.map((m) => Math.max(0, sum('income', m)) / 100);
   const labels = months.map((m) => monthLabel(m).slice(0, 3));
 
-  const year = String(now.getFullYear());
+  const catMonths = new Set(monthsOf(kp));
   const byCat = {};
-  for (const x of entries) if (!x.planned && x.type === 'expense' && x.date.startsWith(year)) byCat[x.categoryId] = (byCat[x.categoryId] || 0) + x.cents;
+  for (const x of entries) if (!x.planned && x.type === 'expense' && catMonths.has(monthOf(x.date))) byCat[x.categoryId] = (byCat[x.categoryId] || 0) + x.cents;
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const maxCat = Math.max(1, ...cats.map((c) => c[1]));
   const rec = recurringSummary(recurring, config.salaries, todayStr().slice(0, 7));
   const plannedList = entries.filter((x) => x.planned);
   const plannedSum = plannedList.reduce((a, x) => a + x.cents, 0);
+  const goRec = () => { view.sub = 'laufend'; view.q = ''; view.redraw(); };
 
   root.replaceChildren(
     el('section', { class: 'card saldo' },
       el('p', { class: 'hint' }, 'Saldo (ohne laufende Kosten)'),
       el('p', { class: 'saldo-text' }, saldo.text),
       saldo.cents ? el('p', { class: 'big-number' }, fmt(saldo.cents)) : null,
-      saldo.cents ? el('button', { class: 'btn ghost', onclick: () => {
-        const b = balance(entries);
-        openEntrySheet(null, { type: 'settlement', payer: b > 0 ? 'logi' : 'dudi', cents: Math.abs(b), title: 'Haushaltsausgleich' });
-      } }, 'Ausgleich eintragen') : null),
-    el('section', { class: 'card' },
+      el('div', { class: 'row' },
+        saldo.cents ? el('button', { class: 'btn ghost', onclick: () => {
+          const b = balance(entries);
+          openEntrySheet(null, { type: 'settlement', payer: b > 0 ? 'logi' : 'dudi', cents: Math.abs(b), title: 'Haushaltsausgleich' });
+        } }, 'Ausgleich eintragen') : null,
+        el('button', { class: 'btn primary', onclick: () => openEntrySheet(null) }, '+ Neuer Eintrag'))),
+    el('section', { class: 'card tap', role: 'button', tabindex: '0', onclick: goRec },
       el('p', { class: 'hint' }, 'Laufende Kosten pro Monat'),
       el('p', { class: 'big-number' }, fmt(rec.total)),
-      rec.total ? el('p', null, `${nameOfKey(rec.transfer.from)} überweist ${nameOfKey(rec.transfer.to)} ${fmt(rec.transfer.cents)}`) : null),
+      rec.total ? el('p', null, `${nameOfKey(rec.transfer.from)} überweist ${nameOfKey(rec.transfer.to)} ${fmt(rec.transfer.cents)} monatlich`) : null),
     ...(plannedList.length ? [el('section', { class: 'card note-card' },
       el('p', { class: 'hint' }, 'Geplante Ausgaben (noch nicht eingerechnet)'),
       el('p', { class: 'big-number' }, fmt(plannedSum)),
       el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : []),
     el('section', { class: 'card' },
-      el('h2', null, 'Letzte 12 Monate'),
+      el('h2', null, /^\d{4}$/.test(cp) ? `Jahr ${cp}` : `Letzte ${cp} Monate`),
+      chipRow(chartOpts, cp, (k) => { view.chartP = k; view.redraw(); }),
       el('p', { class: 'legend' }, el('span', { class: 'dot', style: { background: '#4d8dff' } }), ' Ausgaben  ', el('span', { class: 'dot', style: { background: '#5fd39a' } }), ' Einnahmen'),
       barChart([exp, inc], labels, ['#4d8dff', '#5fd39a'])),
     el('section', { class: 'card' },
-      el('h2', null, `Ausgaben nach Kategorie ${year}`),
+      el('h2', null, `Ausgaben nach Kategorie ${/^\d{4}$/.test(kp) ? kp : '(letzte 12 Monate)'}`),
+      chipRow(catOpts, kp, (k) => { view.catP = k; view.redraw(); }),
       ...(cats.length ? cats.map(([id, c]) => {
         const cat = catOf('expense', id);
         return el('div', { class: 'cat-bar' }, circle(cat, true),
           el('div', { class: 'grow' }, el('div', { class: 'cat-bar-head' }, el('span', null, cat.name), el('span', null, fmt(c))),
             el('div', { class: 'bar' }, el('div', { class: 'bar-fill', style: { width: `${Math.max(2, (c / maxCat) * 100)}%`, background: cat.color } }))));
-      }) : [el('p', { class: 'hint' }, 'Noch keine Ausgaben in diesem Jahr.')]))
+      }) : [el('p', { class: 'hint' }, 'Keine Ausgaben in diesem Zeitraum.')]))
   );
 }
 
@@ -465,7 +481,7 @@ export function mountFinance(root) {
 
   const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['geplant', 'Geplant'], ['laufend', 'Laufende Kosten']];
   function drawContent() {
-    if (view.sub === 'uebersicht') renderOverview(content);
+    if (view.sub === 'uebersicht') renderOverview(content, view);
     else if (view.sub === 'laufend') renderRecurring(content);
     else if (view.sub === 'geplant') renderPlanned(content);
     else renderList(content, view.sub === 'einnahmen' ? 'income' : 'expense', view);

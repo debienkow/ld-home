@@ -171,6 +171,7 @@ select { appearance: none; -webkit-appearance: none; padding-right: 44px; backgr
 .cal-cell { display: grid; justify-items: center; align-content: start; gap: 2px; aspect-ratio: 1; padding: 6px 0 0; border: 0; border-radius: 12px; background: var(--card); }
 .cal-cell.empty { background: none; }
 .cal-cell.today { outline: 2px solid var(--primary); }
+.cal-cell.has-ev { background: color-mix(in srgb, var(--primary) 22%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent); font-weight: 700; }
 .cal-cell.sel { background: var(--card-2); }
 .cal-dots { display: flex; gap: 2px; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; display: block; }
@@ -199,3 +200,7 @@ textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--line); borde
 
 .cam { width: 100%; max-height: 60dvh; background: #000; border-radius: 12px; object-fit: contain; transition: opacity .1s; }
 .cam.flash { opacity: .3; }
+
+.card.tap { cursor: pointer; }
+.chips.small { margin: 6px 0 10px; }
+.chips.small .chip { padding: 6px 12px; font-size: 13px; }
