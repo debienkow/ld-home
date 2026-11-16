@@ -1,5 +1,5 @@
-/* LD Home service worker v1 */
-const CACHE = 'ld-home-v1';
+/* WombiCoon service worker v2 */
+const CACHE = 'wombicoon-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
