@@ -16,24 +16,44 @@ export function el(tag, attrs, ...kids) {
   return node;
 }
 
-/* Unten einfahrendes Fenster */
+/* Unten einfahrendes Fenster; die Zurück-Geste schließt das oberste Fenster */
+const sheetStack = [];
+let ignorePops = 0;
+window.addEventListener('popstate', () => {
+  if (ignorePops > 0) {
+    ignorePops--;
+    if (sheetStack.length && !(history.state && history.state.ldSheet)) history.pushState({ ldSheet: true }, '');
+    return;
+  }
+  const top = sheetStack[sheetStack.length - 1];
+  if (top) top(true);
+});
+
 export function openSheet(title, buildContent) {
-  const close = () => {
+  let closed = false;
+  const close = (viaBack) => {
+    if (closed) return;
+    closed = true;
+    const i = sheetStack.indexOf(close);
+    if (i >= 0) sheetStack.splice(i, 1);
     backdrop.remove();
-    document.body.classList.remove('no-scroll');
+    if (!sheetStack.length) document.body.classList.remove('no-scroll');
+    if (viaBack !== true) { ignorePops++; history.back(); }
   };
   const body = el('div', { class: 'sheet-body' });
   const sheet = el(
     'div',
     { class: 'sheet', role: 'dialog' },
-    el('div', { class: 'sheet-head' }, el('h2', null, title), el('button', { class: 'icon-btn', onclick: close, 'aria-label': 'Schließen' }, '✕')),
+    el('div', { class: 'sheet-head' }, el('h2', null, title), el('button', { class: 'icon-btn', onclick: () => close(), 'aria-label': 'Schließen' }, '✕')),
     body
   );
   const backdrop = el('div', { class: 'backdrop', onclick: (e) => e.target === backdrop && close() }, sheet);
   document.body.append(backdrop);
   document.body.classList.add('no-scroll');
-  buildContent(body, close);
-  return close;
+  history.pushState({ ldSheet: true }, '');
+  sheetStack.push(close);
+  buildContent(body, () => close());
+  return () => close();
 }
 
 /* Ja/Nein-Rückfrage */

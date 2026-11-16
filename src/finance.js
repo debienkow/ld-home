@@ -461,7 +461,7 @@ export function mountFinance(root) {
   const toolbar = el('div', { class: 'search-wrap' });
   const content = el('div');
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Suchen …', oninput: (e) => { view.q = e.target.value; drawContent(); } });
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { date: addDays(todayStr(), 1), payer: '' } : null) }, '+');
+  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { date: addDays(todayStr(), 1) } : null) }, '+');
 
   const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['geplant', 'Geplant'], ['laufend', 'Laufende Kosten']];
   function drawContent() {

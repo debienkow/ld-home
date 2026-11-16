@@ -3,6 +3,7 @@ import { el } from './dom.js';
 import { state, subscribe } from './store.js';
 import { fmt, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
+import { docRow, openDocSheet, recentDocs } from './dms.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
 
 const soon = (title, icon, text) =>
@@ -42,7 +43,10 @@ export function mountHome(root, go) {
         ...(upcoming().filter(needsAnswer).length ? [el('p', { class: 'hint' }, `${upcoming().filter(needsAnswer).length} Einladung(en) warten auf deine Antwort`)] : []),
         ...(upcoming(3).length ? upcoming(3).map((e) => eventRow(e)) : [el('p', { class: 'hint' }, 'Keine anstehenden Termine.')]),
         el('button', { class: 'btn primary wide', onclick: () => openEventSheet() }, '+ Neuer Termin')),
-      soon('Dokumente', '🗂', 'Kommt später: Dokumente fotografieren, ablegen und durchsuchen.')
+      el('section', { class: 'card' },
+        el('h2', { onclick: () => go('dms') }, '🗂 Dokumente'),
+        ...(recentDocs(3).length ? recentDocs(3).map(docRow) : [el('p', { class: 'hint' }, 'Noch keine Dokumente.')]),
+        el('button', { class: 'btn primary wide', onclick: () => openDocSheet() }, '📷 Dokument aufnehmen'))
     );
   }
   render();

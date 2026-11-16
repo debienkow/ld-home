@@ -1,12 +1,13 @@
 /* Gemeinsame Daten (Echtzeit aus Firestore) */
 import {
-  addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, setDoc, updateDoc
+  addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where, writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase.js';
 import { USERS } from './config.js';
 import { BUILTIN_CATALOG, DEFAULT_CATEGORIES, DEFAULT_STORES } from './catalog.js';
 import * as FL from './finlogic.js';
 import { DEFAULT_EVENT_CATEGORIES } from './evlogic.js';
+import { DEFAULT_DMS_CATEGORIES } from './dmslogic.js';
 
 export const state = {
   user: null,
@@ -29,6 +30,7 @@ export const state = {
     ideas: [],
     config: { categories: DEFAULT_EVENT_CATEGORIES }
   },
+  dms: { docs: [], config: { categories: DEFAULT_DMS_CATEGORIES } },
   online: navigator.onLine
 };
 
@@ -147,6 +149,19 @@ export function startStore(user) {
     })
   );
 
+  unsubs.push(
+    onSnapshot(collection(db, 'dms_docs'), (snap) => {
+      state.dms.docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    })
+  );
+  unsubs.push(
+    onSnapshot(doc(db, 'config', 'dms'), (snap) => {
+      if (snap.exists()) state.dms.config = { ...state.dms.config, ...snap.data() };
+      emit();
+    })
+  );
+
   const net = () => {
     state.online = navigator.onLine;
     emit();
@@ -218,3 +233,27 @@ export const saveIdea = (id, data) =>
   id ? setDoc(doc(db, 'event_ideas', id), data, { merge: true }) : addDoc(collection(db, 'event_ideas'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
 export const removeIdea = (id) => deleteDoc(doc(db, 'event_ideas', id));
 export const saveEvConfig = (patch) => setDoc(doc(db, 'config', 'events'), patch, { merge: true });
+
+export const saveDmsConfig = (patch) => setDoc(doc(db, 'config', 'dms'), patch, { merge: true });
+export async function loadPages(docId) {
+  const snap = await getDocs(query(collection(db, 'dms_pages'), where('docId', '==', docId)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.idx - b.idx);
+}
+/* Dokument speichern: meta + neue Seiten + entfernte Seiten */
+export async function saveDms(id, meta, newPages, removedIds) {
+  const ref = id ? doc(db, 'dms_docs', id) : doc(collection(db, 'dms_docs'));
+  const base = id ? meta : { ...meta, createdBy: state.user.uid, createdAt: Date.now() };
+  await setDoc(ref, base, { merge: true });
+  const batch = writeBatch(db);
+  (removedIds || []).forEach((pid) => batch.delete(doc(db, 'dms_pages', pid)));
+  newPages.forEach((p) => batch.set(doc(collection(db, 'dms_pages')), { docId: ref.id, idx: p.idx, img: p.img }));
+  await batch.commit();
+  return ref.id;
+}
+export async function removeDms(id) {
+  const pages = await loadPages(id);
+  const batch = writeBatch(db);
+  pages.forEach((p) => batch.delete(doc(db, 'dms_pages', p.id)));
+  batch.delete(doc(db, 'dms_docs', id));
+  await batch.commit();
+}
