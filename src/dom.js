@@ -60,6 +60,39 @@ export function confirmSheet(title, text, okLabel) {
   });
 }
 
+/* Element nach links wischen zum Löschen (nur Touch) */
+export function swipeDelete(node, onDelete) {
+  const wrap = el('div', { class: 'swipe' }, el('span', { class: 'swipe-bg' }, '🗑 Löschen'), node);
+  let sx = 0, sy = 0, dx = 0, lock = null, moved = false;
+  node.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    sx = e.clientX; sy = e.clientY; dx = 0; lock = null; moved = false;
+  });
+  node.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' || !sx) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (!lock && (Math.abs(mx) > 8 || Math.abs(my) > 8)) lock = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+    if (lock !== 'x') return;
+    dx = Math.min(0, mx);
+    moved = true;
+    node.style.transition = 'none';
+    node.style.transform = `translateX(${dx}px)`;
+  });
+  const end = () => {
+    if (!sx) return;
+    sx = 0;
+    node.style.transition = 'transform .15s';
+    if (dx < -Math.max(90, wrap.offsetWidth * 0.3)) {
+      node.style.transform = 'translateX(-105%)';
+      setTimeout(onDelete, 150);
+    } else node.style.transform = '';
+  };
+  node.addEventListener('pointerup', end);
+  node.addEventListener('pointercancel', end);
+  node.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  return wrap;
+}
+
 export function uid() {
   return Math.random().toString(36).slice(2, 10);
 }

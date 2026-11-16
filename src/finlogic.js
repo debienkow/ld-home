@@ -31,6 +31,9 @@ export const DEFAULT_RULES = [
   ['steam', 'gaming'], ['playstation', 'gaming'], ['kino', 'event']
 ].map(([match, categoryId]) => ({ match, categoryId }));
 
+/* Schnellauswahl beim Eintragen (bis zur eigenen Anpassung) */
+export const DEFAULT_PRESETS = ['Lidl', 'REWE', 'Penny', 'Budni', 'Rossmann'].map((title) => ({ title, categoryId: title === 'Budni' || title === 'Rossmann' ? 'drogerie' : 'supermarkt' }));
+
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 export const fmt = (cents) => eur.format((cents || 0) / 100);
 
@@ -55,6 +58,7 @@ export function balance(entries) {
   let twice = 0;
   for (const e of entries) {
     if (e.type === 'income') continue;
+    if (e.planned) continue;
     const full = e.noSplit || e.type === 'settlement';
     twice += (e.payer === 'dudi' ? 1 : -1) * (full ? 2 * e.cents : e.cents);
   }
@@ -74,14 +78,16 @@ export function currentCents(rec, ym) {
 }
 
 /* Anteil von Logi (Cent pro Monat) */
-function logiShare(monthly, weight, salaries) {
+export function logiShare(monthly, weight, salaries) {
   const w = weight || { mode: 'equal' };
   if (w.mode === 'percent') return Math.round((monthly * (w.logiPercent || 50)) / 100);
   if (w.mode === 'fixed') return Math.min(w.logiFixedCents || 0, monthly);
   if (w.mode === 'salary') {
     const l = (salaries && salaries.logi) || 0;
     const d = (salaries && salaries.dudi) || 0;
-    return l + d ? Math.round((monthly * l) / (l + d)) : Math.round(monthly / 2);
+    const base = l + d ? l / (l + d) : 0.5;
+    const frac = Math.min(1, Math.max(0, base + (w.logiOffsetPercent || 0) / 100));
+    return Math.round(monthly * frac);
   }
   return Math.round(monthly / 2);
 }

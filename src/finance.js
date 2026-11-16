@@ -1,7 +1,7 @@
 /* Tab Finanzen */
 import { confirmSheet, el, openSheet, uid } from './dom.js';
 import {
-  balance, currentCents, fmt, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
+  balance, currentCents, DEFAULT_PRESETS, fmt, logiShare, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
 } from './finlogic.js';
 import {
   myKey, nameOfKey, removeEntry, removeRecurring, saveEntry, saveFinConfig, saveRecurring, state, subscribe
@@ -9,7 +9,9 @@ import {
 import { importFile } from './dataio.js';
 
 const catList = (type) => (type === 'income' ? state.fin.config.incomeCategories : state.fin.config.categories);
-const catOf = (type, id) => catList(type).find((c) => c.id === id) || { icon: '🧾', name: 'Sonstiges', color: '#9aa7c2' };
+const catOf = (type, id) => catList(type).find((c) => c.id === id) || (id ? { icon: '🧾', name: 'Sonstiges', color: '#9aa7c2' } : { icon: '▫️', name: 'Keine', color: '#5d6f96' });
+const presets = () => state.fin.config.presets || DEFAULT_PRESETS;
+const PAYER_NONE = 'Noch nicht festgelegt';
 
 export function saldoText() {
   const b = balance(state.fin.entries);
@@ -22,8 +24,8 @@ const circle = (cat, small) => el('span', { class: 'circle' + (small ? ' small' 
 
 /* Eintrag anlegen oder bearbeiten */
 export function openEntrySheet(entry, preset) {
-  const e = entry || { type: 'expense', date: todayStr(), time: nowTime(), title: '', cents: 0, categoryId: '', payer: myKey(), noSplit: false, note: '', ...(preset || {}) };
-  openSheet(entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag', (body, close) => {
+  const e = entry || { type: 'expense', date: todayStr(), time: nowTime(), title: '', cents: 0, categoryId: '', payer: myKey(), noSplit: false, planned: false, note: '', ...(preset || {}) };
+  openSheet(entry ? 'Eintrag bearbeiten' : e.planned ? 'Geplante Ausgabe' : 'Neuer Eintrag', (body, close) => {
     let type = e.type;
     let catTouched = !!entry;
 
@@ -34,29 +36,67 @@ export function openEntrySheet(entry, preset) {
     const date = el('input', { type: 'date', value: e.date });
     const time = el('input', { type: 'time', value: e.time || '' });
     const cat = el('select');
-    const payer = el('select', null, ...PEOPLE.map((k) => el('option', { value: k, selected: k === e.payer }, nameOfKey(k))));
+    const payer = el('select');
     const noSplit = el('input', { type: 'checkbox', checked: e.noSplit });
+    const planned = el('input', { type: 'checkbox', checked: !!e.planned });
     const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
     const info = el('p', { class: 'hint' });
     const err = el('p', { class: 'form-info bad' });
     const catBox = el('label', null, 'Kategorie', cat);
     const splitBox = el('label', { class: 'toggle-row' }, el('span', null, 'Gesamtkosten nicht teilen (andere Person schuldet alles)'), noSplit);
-    const payerLabel = el('label', null, 'Bezahlt von', payer);
+    const plannedBox = el('label', { class: 'toggle-row' }, el('span', null, 'Geplante Ausgabe (vorgemerkt, noch nicht abgebucht)'), planned);
+    const payerText = el('span', null, 'Bezahlt von');
+    const payerLabel = el('label', null, payerText, payer);
+    const quick = el('div', { class: 'quick' });
 
     const fillCats = (selected) => {
-      cat.replaceChildren(...catList(type).map((c) => el('option', { value: c.id, selected: c.id === selected }, `${c.icon} ${c.name}`)));
+      const opts = type === 'income' ? [] : [el('option', { value: '', selected: !selected }, 'Keine')];
+      cat.replaceChildren(...opts, ...catList(type).map((c) => el('option', { value: c.id, selected: c.id === selected }, `${c.icon} ${c.name}`)));
+    };
+    const fillPayers = (selected) => {
+      const keys = type === 'expense' && planned.checked ? [...PEOPLE, ''] : PEOPLE;
+      payer.replaceChildren(...keys.map((k) => el('option', { value: k, selected: k === selected }, k ? nameOfKey(k) : PAYER_NONE)));
     };
     const refresh = () => {
+      const isPlanned = type === 'expense' && planned.checked;
       catBox.classList.toggle('hidden', type === 'settlement');
       splitBox.classList.toggle('hidden', type !== 'expense');
-      payerLabel.firstChild.textContent = type === 'income' ? 'Erhalten von' : type === 'settlement' ? 'Zahlt (Ausgleich)' : 'Bezahlt von';
-      info.textContent = type === 'settlement' ? `${nameOfKey(payer.value)} zahlt an ${nameOfKey(otherOf(payer.value))}` : '';
+      plannedBox.classList.toggle('hidden', type !== 'expense');
+      quick.classList.toggle('hidden', !!entry || type !== 'expense' || !quick.children.length);
+      payerText.textContent = type === 'income' ? 'Eingegangen bei (Konto von)' : type === 'settlement' ? 'Wer zahlt den Ausgleich?' : isPlanned ? 'Wird abgebucht von' : 'Bezahlt von';
+      info.textContent = type === 'settlement' && payer.value
+        ? `${nameOfKey(payer.value)} zahlt an ${nameOfKey(otherOf(payer.value))}`
+        : isPlanned ? 'Wird erst eingerechnet, sobald du die Ausgabe verbuchst.' : '';
       seg.replaceChildren(...[['expense', 'Ausgabe'], ['income', 'Einnahme'], ['settlement', 'Ausgleich']].map(([k, l]) =>
-        el('button', { type: 'button', class: 'seg-btn' + (type === k ? ' active' : ''), onclick: () => { type = k; catTouched = false; fillCats(''); refresh(); } }, l)));
+        el('button', { type: 'button', class: 'seg-btn' + (type === k ? ' active' : ''), onclick: () => {
+          const prev = payer.value;
+          type = k; catTouched = false;
+          fillCats(k === 'income' ? 'gehalt' : '');
+          if (k === 'settlement') {
+            const b = balance(state.fin.entries);
+            if (!title.value.trim()) title.value = 'Haushaltsausgleich';
+            if (!amount.value.trim() && b) amount.value = (Math.abs(b) / 100).toFixed(2).replace('.', ',');
+            fillPayers(b ? (b > 0 ? 'logi' : 'dudi') : prev);
+          } else {
+            if (title.value === 'Haushaltsausgleich') title.value = '';
+            fillPayers(prev || myKey());
+          }
+          refresh();
+        } }, l)));
     };
-    fillCats(e.categoryId || (type === 'income' ? 'gehalt' : 'sonstiges'));
+    fillCats(entry ? e.categoryId : e.categoryId || (type === 'income' ? 'gehalt' : ''));
+    fillPayers(e.payer);
     payer.addEventListener('change', refresh);
+    planned.addEventListener('change', () => { fillPayers(planned.checked ? '' : myKey()); refresh(); });
     cat.addEventListener('change', () => (catTouched = true));
+
+    quick.replaceChildren(...presets().map((p) => el('button', { type: 'button', class: 'chip', onclick: () => {
+      title.value = p.title;
+      catTouched = false;
+      fillCats(p.categoryId ?? suggestCategory(p.title, state.fin.config.rules) ?? '');
+      suggest.classList.add('hidden');
+      amount.focus();
+    } }, p.title)));
 
     const history = () => {
       const map = new Map();
@@ -83,36 +123,42 @@ export function openEntrySheet(entry, preset) {
       suggest.classList.toggle('hidden', !hits.length);
     });
 
+    const save = async (book) => {
+      const cents = parseMoney(amount.value);
+      const isPlanned = type === 'expense' && planned.checked && !book;
+      if (cents === null || cents === 0) return (err.textContent = 'Bitte einen gültigen Betrag eingeben.');
+      if (!title.value.trim() && type !== 'settlement') return (err.textContent = 'Bitte einen Titel eingeben.');
+      if (!date.value) return (err.textContent = 'Bitte ein Datum wählen.');
+      if (!isPlanned && !payer.value) return (err.textContent = 'Bitte festlegen, von wem bezahlt wird.');
+      await saveEntry(entry && entry.id, {
+        type,
+        title: title.value.trim() || 'Haushaltsausgleich',
+        cents,
+        date: book ? todayStr() : date.value,
+        time: time.value || '',
+        payer: payer.value,
+        categoryId: type === 'settlement' ? 'ausgleich' : cat.value,
+        noSplit: type === 'expense' && noSplit.checked,
+        planned: isPlanned,
+        note: note.value.trim()
+      });
+      close();
+    };
+
     refresh();
     body.append(
-      seg,
+      seg, quick,
       el('label', null, 'Titel', title), suggest,
       el('label', null, 'Betrag (€)', amount),
-      el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Datum', date), el('label', { class: 'grow' }, 'Uhrzeit', time)),
-      catBox, payerLabel, splitBox, info,
+      el('div', { class: 'row' }, el('label', { class: 'grow' }, type === 'expense' && e.planned ? 'Voraussichtlich am' : 'Datum', date), el('label', { class: 'grow' }, 'Uhrzeit', time)),
+      catBox, payerLabel, splitBox, plannedBox, info,
       el('label', null, 'Notiz', note), err,
+      ...(entry && entry.planned ? [el('button', { class: 'btn primary wide', type: 'button', onclick: () => { planned.checked = false; save(true); } }, 'Jetzt als bezahlt verbuchen')] : []),
       el('div', { class: 'row between' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Eintrag löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEntry(entry.id); close(); }
         } }, 'Löschen') : el('span'),
-        el('button', { class: 'btn primary', type: 'button', onclick: async () => {
-          const cents = parseMoney(amount.value);
-          if (cents === null || cents === 0) return (err.textContent = 'Bitte einen gültigen Betrag eingeben.');
-          if (!title.value.trim() && type !== 'settlement') return (err.textContent = 'Bitte einen Titel eingeben.');
-          if (!date.value) return (err.textContent = 'Bitte ein Datum wählen.');
-          await saveEntry(entry && entry.id, {
-            type,
-            title: title.value.trim() || 'Haushaltsausgleich',
-            cents,
-            date: date.value,
-            time: time.value || '',
-            payer: payer.value,
-            categoryId: type === 'settlement' ? 'ausgleich' : cat.value,
-            noSplit: type === 'expense' && noSplit.checked,
-            note: note.value.trim()
-          });
-          close();
-        } }, 'Speichern'))
+        el('button', { class: 'btn primary', type: 'button', onclick: () => save(false) }, 'Speichern'))
     );
   });
 }
@@ -140,17 +186,19 @@ function renderOverview(root) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push(d.toLocaleDateString('sv-SE').slice(0, 7));
   }
-  const sum = (type, ym) => entries.filter((x) => x.type === type && monthOf(x.date) === ym).reduce((a, x) => a + x.cents, 0);
+  const sum = (type, ym) => entries.filter((x) => !x.planned && x.type === type && monthOf(x.date) === ym).reduce((a, x) => a + x.cents, 0);
   const exp = months.map((m) => Math.max(0, sum('expense', m)) / 100);
   const inc = months.map((m) => Math.max(0, sum('income', m)) / 100);
   const labels = months.map((m) => monthLabel(m).slice(0, 3));
 
   const year = String(now.getFullYear());
   const byCat = {};
-  for (const x of entries) if (x.type === 'expense' && x.date.startsWith(year)) byCat[x.categoryId] = (byCat[x.categoryId] || 0) + x.cents;
+  for (const x of entries) if (!x.planned && x.type === 'expense' && x.date.startsWith(year)) byCat[x.categoryId] = (byCat[x.categoryId] || 0) + x.cents;
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const maxCat = Math.max(1, ...cats.map((c) => c[1]));
   const rec = recurringSummary(recurring, config.salaries, todayStr().slice(0, 7));
+  const plannedList = entries.filter((x) => x.planned);
+  const plannedSum = plannedList.reduce((a, x) => a + x.cents, 0);
 
   root.replaceChildren(
     el('section', { class: 'card saldo' },
@@ -165,6 +213,10 @@ function renderOverview(root) {
       el('p', { class: 'hint' }, 'Laufende Kosten pro Monat'),
       el('p', { class: 'big-number' }, fmt(rec.total)),
       rec.total ? el('p', null, `${nameOfKey(rec.transfer.from)} überweist ${nameOfKey(rec.transfer.to)} ${fmt(rec.transfer.cents)}`) : null),
+    ...(plannedList.length ? [el('section', { class: 'card note-card' },
+      el('p', { class: 'hint' }, 'Geplante Ausgaben (noch nicht eingerechnet)'),
+      el('p', { class: 'big-number' }, fmt(plannedSum)),
+      el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : []),
     el('section', { class: 'card' },
       el('h2', null, 'Letzte 12 Monate'),
       el('p', { class: 'legend' }, el('span', { class: 'dot', style: { background: '#4d8dff' } }), ' Ausgaben  ', el('span', { class: 'dot', style: { background: '#5fd39a' } }), ' Einnahmen'),
@@ -182,7 +234,7 @@ function renderOverview(root) {
 
 function renderList(root, type, view) {
   const q = view.q.trim().toLowerCase();
-  let list = state.fin.entries.filter((x) => (type === 'income' ? x.type === 'income' : x.type !== 'income'));
+  let list = state.fin.entries.filter((x) => !x.planned && (type === 'income' ? x.type === 'income' : x.type !== 'income'));
   if (q) list = list.filter((x) => `${x.title} ${x.note || ''}`.toLowerCase().includes(q));
   list.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || '') || (b.createdAt || 0) - (a.createdAt || 0));
   const months = [...new Set(list.map((x) => monthOf(x.date)))];
@@ -207,6 +259,27 @@ function renderList(root, type, view) {
     blocks.push(el('button', { class: 'btn ghost wide', onclick: () => { view.monthsShown += 3; view.redraw(); } }, 'Ältere Monate anzeigen'));
   }
   root.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, 'Noch keine Einträge. Tippe unten auf +.')]));
+}
+
+/* Geplante Ausgaben */
+function renderPlanned(root) {
+  const list = state.fin.entries.filter((x) => x.planned).sort((a, b) => a.date.localeCompare(b.date));
+  const total = list.reduce((a, x) => a + x.cents, 0);
+  root.replaceChildren(
+    el('section', { class: 'card note-card' },
+      el('h2', null, 'Geplante Ausgaben'),
+      el('p', { class: 'hint' }, 'Diese Ausgaben sind vorgemerkt, aber noch nicht abgebucht. Sie werden nicht in den Saldo eingerechnet und verschieben kein Geld, bis du sie als bezahlt verbuchst.'),
+      list.length ? el('p', { class: 'big-number' }, fmt(total)) : null),
+    ...(list.length ? list.map((x) => {
+      const cat = catOf('expense', x.categoryId);
+      return el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
+        circle(cat),
+        el('span', { class: 'grow fin-main' },
+          el('span', { class: 'item-name' }, x.title),
+          el('span', { class: 'hint' }, `${new Date(x.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} · ${x.payer ? `Konto ${nameOfKey(x.payer)}` : PAYER_NONE}${x.noSplit ? ' · nicht geteilt' : ''}`)),
+        el('span', { class: 'amount' }, fmt(x.cents)));
+    }) : [el('p', { class: 'empty' }, 'Nichts geplant. Tippe unten auf +.')])
+  );
 }
 
 /* Laufende Kosten */
@@ -256,12 +329,15 @@ function openRecurringSheet(rec) {
     const mode = el('select', null, ...[['equal', '50/50'], ['salary', 'nach Nettogehalt'], ['percent', 'Prozent'], ['fixed', 'Fester Betrag']].map(([k, l]) => el('option', { value: k, selected: k === ((r.weight && r.weight.mode) || 'equal') }, l)));
     const pct = el('input', { type: 'text', inputmode: 'decimal', value: r.weight && r.weight.logiPercent ? String(r.weight.logiPercent).replace('.', ',') : '50' });
     const fixed = el('input', { type: 'text', inputmode: 'decimal', value: r.weight && r.weight.logiFixedCents ? (r.weight.logiFixedCents / 100).toFixed(2).replace('.', ',') : '' });
+    const offset = el('input', { type: 'text', inputmode: 'decimal', value: r.weight && r.weight.logiOffsetPercent ? String(r.weight.logiOffsetPercent).replace('.', ',') : '' , placeholder: '0' });
+    const offsetBox = el('label', null, `Zusatz-Ausgleich für ${nameOfKey('logi')} in Prozentpunkten (negativ = ${nameOfKey('logi')} zahlt weniger, z. B. wegen Zimmergröße)`, offset);
+    const preview = el('p', { class: 'hint' });
     const pctBox = el('label', null, `Anteil ${nameOfKey('logi')} in %`, pct);
     const fixedBox = el('label', null, `Fester Anteil ${nameOfKey('logi')} (€ pro Monat)`, fixed);
     const vBox = el('div');
     const err = el('p', { class: 'form-info bad' });
     const newFrom = el('input', { type: 'month', value: todayStr().slice(0, 7) });
-    const newAmt = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Betrag pro Zahlung' });
+    const newAmt = el('input', { type: 'text', inputmode: 'decimal', placeholder: '0,00' });
 
     const drawV = () => {
       versions.sort((a, b) => a.from.localeCompare(b.from));
@@ -269,23 +345,39 @@ function openRecurringSheet(rec) {
         el('span', { class: 'grow' }, `ab ${monthLabel(v.from)}`), el('strong', null, fmt(v.cents)),
         el('button', { class: 'icon-btn', type: 'button', onclick: () => { versions.splice(i, 1); drawV(); } }, '🗑'))));
     };
+    const currentWeight = () => {
+      const w = { mode: mode.value };
+      if (mode.value === 'percent') w.logiPercent = parseFloat(pct.value.replace(',', '.')) || 50;
+      if (mode.value === 'fixed') w.logiFixedCents = parseMoney(fixed.value) || 0;
+      if (mode.value === 'salary') w.logiOffsetPercent = parseFloat(offset.value.replace(',', '.')) || 0;
+      return w;
+    };
     const drawMode = () => {
       pctBox.classList.toggle('hidden', mode.value !== 'percent');
       fixedBox.classList.toggle('hidden', mode.value !== 'fixed');
+      offsetBox.classList.toggle('hidden', mode.value !== 'salary');
+      const pc = logiShare(1000000, currentWeight(), state.fin.config.salaries) / 10000;
+      preview.textContent = `Aktueller Anteil ${nameOfKey('logi')}: ${pc.toFixed(2).replace('.', ',')} % · ${nameOfKey('dudi')}: ${(100 - pc).toFixed(2).replace('.', ',')} %`;
     };
-    mode.addEventListener('change', drawMode);
+    [mode, pct, fixed, offset].forEach((i) => i.addEventListener(i === mode ? 'change' : 'input', drawMode));
+    const intervalText = () => ({ 1: 'jeden Monat', 3: 'alle 3 Monate', 6: 'alle 6 Monate', 12: 'einmal im Jahr' }[Number(interval.value)] || 'je Zahlung');
+    const amtHint = el('p', { class: 'hint' });
+    const drawAmtHint = () => (amtHint.textContent = `Der Betrag gilt pro Abbuchung und wird ${intervalText()} abgebucht.`);
+    interval.addEventListener('change', drawAmtHint);
+    drawAmtHint();
     drawV(); drawMode();
 
     body.append(
       el('label', null, 'Bezeichnung', title),
       el('label', null, 'Abgebucht von Konto', payer),
       el('label', null, 'Zahlweise', interval),
-      el('label', null, 'Gewichtung', mode), pctBox, fixedBox,
+      el('label', null, 'Gewichtung', mode), pctBox, fixedBox, offsetBox, preview,
       el('h3', null, 'Preisverlauf'),
       el('p', { class: 'hint' }, 'Ein neuer Preis gilt erst ab dem gewählten Monat. Ältere Zeiten bleiben unberührt.'),
       vBox,
-      el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Gültig ab', newFrom), el('label', { class: 'grow' }, 'Betrag (€)', newAmt),
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => {
+      el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Gültig ab', newFrom), el('label', { class: 'grow' }, 'Betrag pro Abbuchung (€)', newAmt)),
+      amtHint,
+      el('button', { class: 'btn ghost wide', type: 'button', onclick: () => {
           const c = parseMoney(newAmt.value);
           if (c === null || !newFrom.value) return (err.textContent = 'Monat und Betrag prüfen.');
           err.textContent = '';
@@ -293,7 +385,7 @@ function openRecurringSheet(rec) {
           if (ex) ex.cents = c; else versions.push({ from: newFrom.value, cents: c });
           newAmt.value = '';
           drawV();
-        } }, '+')),
+        } }, '+ Preis hinzufügen'),
       err,
       el('div', { class: 'row between' },
         rec ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
@@ -302,9 +394,7 @@ function openRecurringSheet(rec) {
         el('button', { class: 'btn primary', type: 'button', onclick: async () => {
           if (!title.value.trim()) return (err.textContent = 'Bitte eine Bezeichnung eingeben.');
           if (!versions.length) return (err.textContent = 'Bitte mindestens einen Preis eintragen.');
-          const weight = { mode: mode.value };
-          if (mode.value === 'percent') weight.logiPercent = parseFloat(pct.value.replace(',', '.')) || 50;
-          if (mode.value === 'fixed') weight.logiFixedCents = parseMoney(fixed.value) || 0;
+          const weight = currentWeight();
           await saveRecurring(rec && rec.id, { title: title.value.trim(), payer: payer.value, intervalMonths: Number(interval.value), weight, versions, sort: r.sort || 0 });
           close();
         } }, 'Speichern')));
@@ -317,6 +407,7 @@ function openFinSettings() {
     const cfg = state.fin.config;
     const cats = cfg.categories.map((c) => ({ ...c }));
     const rules = cfg.rules.map((r) => ({ ...r }));
+    const quick = (cfg.presets || DEFAULT_PRESETS).map((p) => ({ ...p }));
     const area = el('div');
     const draw = () => {
       area.replaceChildren(
@@ -333,7 +424,14 @@ function openFinSettings() {
           el('input', { class: 'grow', value: r.match, oninput: (e) => (r.match = e.target.value) }),
           el('select', { onchange: (e) => (r.categoryId = e.target.value) }, ...cats.map((c) => el('option', { value: c.id, selected: c.id === r.categoryId }, `${c.icon} ${c.name}`))),
           el('button', { class: 'icon-btn', type: 'button', onclick: () => { rules.splice(i, 1); draw(); } }, '🗑'))),
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => { rules.push({ match: '', categoryId: cats[0].id }); draw(); } }, '+ Regel')
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { rules.push({ match: '', categoryId: cats[0].id }); draw(); } }, '+ Regel'),
+        el('h3', null, 'Schnellauswahl'),
+        el('p', { class: 'hint' }, 'Diese Chips erscheinen beim Anlegen einer Ausgabe: ein Tipp setzt Titel und Kategorie.'),
+        ...quick.map((q, i) => el('div', { class: 'edit-row' },
+          el('input', { class: 'grow', value: q.title, oninput: (e) => (q.title = e.target.value) }),
+          el('select', { onchange: (e) => (q.categoryId = e.target.value) }, el('option', { value: '' }, 'Keine'), ...cats.map((c) => el('option', { value: c.id, selected: c.id === q.categoryId }, `${c.icon} ${c.name}`))),
+          el('button', { class: 'icon-btn', type: 'button', onclick: () => { quick.splice(i, 1); draw(); } }, '🗑'))),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { quick.push({ title: '', categoryId: '' }); draw(); } }, '+ Chip')
       );
     };
     draw();
@@ -342,7 +440,7 @@ function openFinSettings() {
     } });
     body.append(area,
       el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => {
-        await saveFinConfig({ categories: cats, rules: rules.filter((r) => r.match.trim()) });
+        await saveFinConfig({ categories: cats, rules: rules.filter((r) => r.match.trim()), presets: quick.filter((q) => q.title.trim()) });
         close();
       } }, 'Speichern')),
       el('h3', null, 'Daten importieren'),
@@ -357,9 +455,9 @@ export function mountFinance(root) {
   const toolbar = el('div', { class: 'search-wrap' });
   const content = el('div');
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Suchen …', oninput: (e) => { view.q = e.target.value; draw(); } });
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : null) }, '+');
+  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { planned: true, payer: '' } : null) }, '+');
 
-  const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['laufend', 'Laufende Kosten']];
+  const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['geplant', 'Geplant'], ['laufend', 'Laufende Kosten']];
   function draw() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; view.q = ''; search.value = ''; view.monthsShown = 3; draw(); } }, l)),
       el('button', { class: 'chip gear', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, '⚙︎'));
@@ -368,6 +466,7 @@ export function mountFinance(root) {
     fab.classList.toggle('hidden', view.sub === 'laufend');
     if (view.sub === 'uebersicht') renderOverview(content);
     else if (view.sub === 'laufend') renderRecurring(content);
+    else if (view.sub === 'geplant') renderPlanned(content);
     else renderList(content, view.sub === 'einnahmen' ? 'income' : 'expense', view);
   }
   view.redraw = draw;

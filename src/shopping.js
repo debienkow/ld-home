@@ -1,5 +1,5 @@
 /* Tab Einkauf */
-import { el, openSheet, uid } from './dom.js';
+import { el, openSheet, swipeDelete, uid } from './dom.js';
 import {
   addItem, catalogEntries, learn, norm, removeItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
 } from './store.js';
@@ -121,7 +121,7 @@ export function mountShopping(root) {
   function row(item, done) {
     const cat = catOf(item.categoryId);
     const store = storeOf(item.store);
-    return el('div', { class: 'item' + (done ? ' done' : '') },
+    const inner = el('div', { class: 'item' + (done ? ' done' : '') },
       el('button', { class: 'item-main', type: 'button', onclick: () => setDone(item.id, !done) },
         iconCircle(cat),
         el('span', { class: 'item-name' }, item.name),
@@ -129,6 +129,7 @@ export function mountShopping(root) {
         store && el('span', { class: 'tag' }, store.name)),
       el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Bearbeiten', onclick: () => openItemSheet(item) }, '⋯')
     );
+    return swipeDelete(inner, () => removeItem(item.id));
   }
 
   function render() {
