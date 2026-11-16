@@ -144,3 +144,12 @@ export function shrinkImage(file, maxSize, quality = 0.8) {
     img.src = URL.createObjectURL(file);
   });
 }
+
+/* Chip-Reihen behalten beim Neuzeichnen ihre Scrollposition */
+export function keepChips(fn) {
+  const pos = [...document.querySelectorAll('.chips')].map((c) => c.scrollLeft);
+  fn();
+  const apply = () => document.querySelectorAll('.chips').forEach((c, i) => { if (pos[i]) c.scrollLeft = pos[i]; });
+  apply();
+  requestAnimationFrame(apply);
+}

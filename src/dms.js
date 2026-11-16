@@ -1,5 +1,5 @@
 /* Tab DMS: Dokumente fotografieren, ablegen, durchsuchen */
-import { confirmSheet, el, openSheet, uid } from './dom.js';
+import { confirmSheet, el, keepChips, openSheet, uid } from './dom.js';
 import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages, recognize } from './dmslogic.js';
 import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
@@ -200,7 +200,8 @@ export function mountDms(root) {
   const list = el('div');
   const fab = el('button', { class: 'fab', 'aria-label': 'Neues Dokument', onclick: () => openDocSheet() }, '+');
 
-  function drawChips() {
+  function drawChips() { keepChips(drawChipsNow); }
+  function drawChipsNow() {
     chips.replaceChildren(
       el('button', { class: 'chip' + (!view.cat ? ' active' : ''), onclick: () => { view.cat = ''; drawChips(); drawList(); } }, 'Alle'),
       ...cats().map((c) => el('button', { class: 'chip' + (view.cat === c.id ? ' active' : ''), onclick: () => { view.cat = c.id; drawChips(); drawList(); } }, `${c.icon} ${c.name}`)),

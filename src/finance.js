@@ -1,5 +1,5 @@
 /* Tab Finanzen */
-import { confirmSheet, el, openSheet, uid } from './dom.js';
+import { confirmSheet, el, keepChips, openSheet, uid } from './dom.js';
 import {
   balance, currentCents, DEFAULT_PRESETS, fmt, logiShare, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
 } from './finlogic.js';
@@ -200,7 +200,7 @@ function renderOverview(root, view) {
   const years = [];
   for (let y = Number(cur); y >= Number(first); y--) years.push(String(y));
   const chartOpts = [['3', '3 Monate'], ['6', '6 Monate'], ['12', '12 Monate'], ...years.map((y) => [y, y])];
-  const catOpts = [['12', '12 Monate'], ...years.map((y) => [y, y])];
+  const catOpts = [['1', 'Dieser Monat'], ['3', '3 Monate'], ['12', '12 Monate'], ...years.map((y) => [y, y])];
   const cp = view.chartP || '12', kp = view.catP || cur;
   const months = monthsOf(cp);
   const sum = (type, ym) => entries.filter((x) => !x.planned && x.type === type && monthOf(x.date) === ym).reduce((a, x) => a + x.cents, 0);
@@ -243,7 +243,7 @@ function renderOverview(root, view) {
       el('p', { class: 'legend' }, el('span', { class: 'dot', style: { background: '#4d8dff' } }), ' Ausgaben  ', el('span', { class: 'dot', style: { background: '#5fd39a' } }), ' Einnahmen'),
       barChart([exp, inc], labels, ['#4d8dff', '#5fd39a'])),
     el('section', { class: 'card' },
-      el('h2', null, `Ausgaben nach Kategorie ${/^\d{4}$/.test(kp) ? kp : '(letzte 12 Monate)'}`),
+      el('h2', null, `Ausgaben nach Kategorie ${/^\d{4}$/.test(kp) ? kp : kp === '1' ? '(dieser Monat)' : `(letzte ${kp} Monate)`}`),
       chipRow(catOpts, kp, (k) => { view.catP = k; view.redraw(); }),
       ...(cats.length ? cats.map(([id, c]) => {
         const cat = catOf('expense', id);
@@ -487,7 +487,8 @@ export function mountFinance(root) {
     else renderList(content, view.sub === 'einnahmen' ? 'income' : 'expense', view);
   }
   let toolSub = null;
-  function draw() {
+  function draw() { keepChips(drawNow); }
+  function drawNow() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; view.q = ''; search.value = ''; view.monthsShown = 3; draw(); } }, l)),
       el('button', { class: 'chip gear', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, '⚙︎'));
     if (toolSub !== view.sub) {

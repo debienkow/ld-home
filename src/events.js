@@ -1,5 +1,5 @@
 /* Tab Events */
-import { confirmSheet, el, openSheet, swipeDelete, uid } from './dom.js';
+import { confirmSheet, el, openSheet, keepChips, swipeDelete, uid } from './dom.js';
 import {
   addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso, workdays
 } from './evlogic.js';
@@ -248,7 +248,8 @@ export function mountEvents(root) {
   const ideaList = el('div');
   const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Termin', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day } : null)) }, '+');
   const SUBS = [['kommend', 'Übersicht'], ['kalender', 'Kalender'], ['ideen', 'Ideen']];
-  function draw() {
+  function draw() { keepChips(drawNow); }
+  function drawNow() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; draw(); } }, l)),
       el('button', { class: 'chip gear', onclick: openEvSettings, 'aria-label': 'Kategorien' }, '⚙︎'));
     if (view.sub === 'kommend') renderUpcoming(content, view);
