@@ -9,6 +9,7 @@ import { startStore, state, stopStore, subscribe } from './store.js';
 import { avatar, openProfile } from './profile.js';
 import { mountHome, mountSoon } from './home.js';
 import { mountShopping } from './shopping.js';
+import { mountFinance } from './finance.js';
 
 const root = document.getElementById('app');
 
@@ -62,7 +63,7 @@ function renderShell() {
     window.scrollTo(0, 0);
     if (id === 'home') unmountTab = mountHome(main, go);
     else if (id === 'einkauf') unmountTab = mountShopping(main);
-    else if (id === 'finanzen') unmountTab = mountSoon(main, '💶 Finanzen', 'Kommt in der nächsten Ausbaustufe.');
+    else if (id === 'finanzen') unmountTab = mountFinance(main);
     else if (id === 'events') unmountTab = mountSoon(main, '📅 Events', 'Kommt in einer späteren Ausbaustufe.');
     else unmountTab = mountSoon(main, '🗂 DMS', 'Kommt in einer späteren Ausbaustufe.');
   };

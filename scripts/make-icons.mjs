@@ -9,7 +9,7 @@ const plain = (size, name) => sharp(svg, { density: 384 }).resize(size, size).pn
 
 const maskable = async () => {
   const inner = await sharp(svg, { density: 384 }).resize(400, 400).png().toBuffer();
-  await sharp({ create: { width: 512, height: 512, channels: 4, background: '#f4e3c5' } })
+  await sharp({ create: { width: 512, height: 512, channels: 4, background: '#12285a' } })
     .composite([{ input: inner, left: 56, top: 56 }])
     .png().toFile(out + 'icon-maskable-512.png');
 };

@@ -5,6 +5,7 @@ import {
 import { db } from './firebase.js';
 import { USERS } from './config.js';
 import { BUILTIN_CATALOG, DEFAULT_CATEGORIES, DEFAULT_STORES } from './catalog.js';
+import * as FL from './finlogic.js';
 
 export const state = {
   user: null,
@@ -12,6 +13,16 @@ export const state = {
   learned: new Map(),
   settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES },
   profiles: {},
+  fin: {
+    entries: [],
+    recurring: [],
+    config: {
+      categories: FL.DEFAULT_CATEGORIES,
+      incomeCategories: FL.DEFAULT_INCOME_CATEGORIES,
+      rules: FL.DEFAULT_RULES,
+      salaries: { logi: 0, dudi: 0 }
+    }
+  },
   online: navigator.onLine
 };
 
@@ -90,6 +101,27 @@ export function startStore(user) {
     })
   );
 
+  unsubs.push(
+    onSnapshot(collection(db, 'fin_entries'), (snap) => {
+      state.fin.entries = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    })
+  );
+
+  unsubs.push(
+    onSnapshot(collection(db, 'fin_recurring'), (snap) => {
+      state.fin.recurring = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    })
+  );
+
+  unsubs.push(
+    onSnapshot(doc(db, 'config', 'finance'), (snap) => {
+      if (snap.exists()) state.fin.config = { ...state.fin.config, ...snap.data() };
+      emit();
+    })
+  );
+
   const net = () => {
     state.online = navigator.onLine;
     emit();
@@ -133,6 +165,18 @@ export const removeItem = (id) => deleteDoc(doc(db, 'items', id));
 
 export const learn = (name, categoryId) =>
   setDoc(doc(db, 'catalog', norm(name).replace(/\//g, '-')), { name: name.trim(), categoryId });
+
+export const myKey = () => (state.user && USERS[state.user.uid] ? USERS[state.user.uid].key : 'dudi');
+export const uidOfKey = (key) => Object.keys(USERS).find((u) => USERS[u].key === key);
+export const nameOfKey = (key) => userName(uidOfKey(key));
+
+export const saveEntry = (id, data) =>
+  id ? setDoc(doc(db, 'fin_entries', id), data, { merge: true }) : addDoc(collection(db, 'fin_entries'), { ...data, createdBy: state.user.uid, createdAt: Date.now() });
+export const removeEntry = (id) => deleteDoc(doc(db, 'fin_entries', id));
+export const saveRecurring = (id, data) =>
+  id ? setDoc(doc(db, 'fin_recurring', id), data) : addDoc(collection(db, 'fin_recurring'), data);
+export const removeRecurring = (id) => deleteDoc(doc(db, 'fin_recurring', id));
+export const saveFinConfig = (patch) => setDoc(doc(db, 'config', 'finance'), patch, { merge: true });
 
 export const saveSettings = (settings) => setDoc(doc(db, 'config', 'shopping'), settings);
 

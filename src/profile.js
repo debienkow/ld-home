@@ -2,6 +2,7 @@
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
 import { confirmSheet, el, openSheet, shrinkImage } from './dom.js';
+import { exportAll } from './dataio.js';
 import { saveProfile, saveProfilePhoto, state, userName } from './store.js';
 
 export function avatar(uid, size = '') {
@@ -41,6 +42,7 @@ export function openProfile() {
           close();
         }
       }, 'Namen speichern'),
+      el('button', { class: 'btn ghost wide', onclick: exportAll }, 'Alle Daten sichern (Download)'),
       el('button', {
         class: 'btn danger wide',
         onclick: async () => {

@@ -1,6 +1,8 @@
 /* Tab Home */
 import { el } from './dom.js';
 import { state, subscribe } from './store.js';
+import { fmt } from './finlogic.js';
+import { openEntrySheet, saldoText } from './finance.js';
 
 const soon = (title, icon, text) =>
   el('section', { class: 'card muted' },
@@ -23,7 +25,11 @@ export function mountHome(root, go) {
         el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
         tags.length && el('div', { class: 'tags' }, ...tags),
         !open.length && el('p', { class: 'hint' }, 'Nichts auf der Liste.')),
-      soon('Finanzen', '💶', 'Kommt als Nächstes: wer schuldet wem, neue Ausgaben, laufende Kosten.'),
+      el('section', { class: 'card' },
+        el('h2', { onclick: () => go('finanzen') }, '💶 Finanzen'),
+        el('p', { class: 'saldo-text' }, saldoText().text),
+        saldoText().cents ? el('p', { class: 'big-number' }, fmt(saldoText().cents)) : null,
+        el('button', { class: 'btn primary wide', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
       soon('Events', '📅', 'Kommt danach: gemeinsame Termine, Zu- und Absagen, Ideenliste.'),
       soon('Dokumente', '🗂', 'Kommt später: Dokumente fotografieren, ablegen und durchsuchen.')
     );
