@@ -1,4 +1,4 @@
-/* LD Home: Start, Login-Wechsel, Tabs */
+/* WombiCoon: Start, Login-Wechsel, Tabs */
 import './style.css';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase.js';
@@ -75,7 +75,7 @@ function renderShell() {
   root.replaceChildren(
     el('header', { class: 'topbar' },
       el('img', { class: 'logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: '' }),
-      el('span', { class: 'brand' }, import.meta.env.MODE === 'demo' ? 'LD Home (Demo)' : 'LD Home'), profileBtn),
+      el('span', { class: 'brand' }, import.meta.env.MODE === 'demo' ? 'WombiCoon (Demo)' : 'WombiCoon'), profileBtn),
     offline, main, nav
   );
   showTab();
@@ -89,7 +89,7 @@ onAuthStateChanged(auth, (user) => {
     stopStore();
     renderLogin(root);
   } else if (!USERS[user.uid]) {
-    root.replaceChildren(el('p', { class: 'empty' }, 'Dieses Konto ist für LD Home nicht freigeschaltet.'));
+    root.replaceChildren(el('p', { class: 'empty' }, 'Dieses Konto ist für WombiCoon nicht freigeschaltet.'));
   } else {
     startStore(user);
     renderShell();

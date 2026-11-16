@@ -39,8 +39,8 @@ export function renderLogin(root) {
         }
       }
     },
-    el('img', { class: 'login-logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: 'LD Home' }),
-    el('h1', null, 'LD Home'),
+    el('img', { class: 'login-logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: 'WombiCoon' }),
+    el('h1', null, 'WombiCoon'),
     el('label', null, 'E-Mail', email),
     el('label', null, 'Passwort', pw),
     info,

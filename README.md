@@ -1,4 +1,4 @@
-# LD Home
+# WombiCoon (Repo: ld-home)
 
 Private Haushalts-App (PWA) für Dudi und Logi. Firebase (Auth + Firestore), Hosting über GitHub Pages.
 
