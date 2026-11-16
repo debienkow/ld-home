@@ -1,4 +1,4 @@
-/* LD Home: Google-Kalender-Sync v1.1 (17.11.2026) */
+/* LD Home: Google-Kalender-Sync v1.2 (17.11.2026) */
 const TOKEN = 'HIER-EIN-GEHEIMWORT-EINTRAGEN';
 const CAL_NAME = 'LD Home';
 const TZ = 'Europe/Berlin';
@@ -43,7 +43,8 @@ function doPost(req) {
   const cal = cal_();
   if (r.action === 'ping') return out_({ ok: true, calendar: CAL_NAME });
   if (r.action === 'list') {
-    const list = cal.getEvents(d_(r.from), d_(r.to)).map(ev_);
+    const list = [];
+    CalendarApp.getAllOwnedCalendars().forEach((c) => c.getEvents(d_(r.from), d_(r.to)).forEach((e) => list.push(ev_(e))));
     return out_({ ok: true, events: list });
   }
   if (r.action === 'listAll') {
@@ -53,7 +54,7 @@ function doPost(req) {
   }
   if (r.action === 'upsert') {
     const p = r.event;
-    let e = p.gid ? cal.getEventById(p.gid) : null;
+    let e = p.gid ? CalendarApp.getEventById(p.gid) : null;
     if (!e) {
       e = p.allDay
         ? cal.createAllDayEvent(p.title, d_(p.start), d_(plus_(p.end || p.start, 1)))
@@ -63,7 +64,7 @@ function doPost(req) {
     return out_({ ok: true, gid: e.getId(), updated: e.getLastUpdated().getTime() });
   }
   if (r.action === 'delete') {
-    const e = cal.getEventById(r.gid);
+    const e = CalendarApp.getEventById(r.gid);
     if (e) e.deleteEvent();
     return out_({ ok: true });
   }
