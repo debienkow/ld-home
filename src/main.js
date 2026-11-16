@@ -74,7 +74,7 @@ function renderShell() {
   root.replaceChildren(
     el('header', { class: 'topbar' },
       el('img', { class: 'logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: '' }),
-      el('span', { class: 'brand' }, 'LD Home'), profileBtn),
+      el('span', { class: 'brand' }, import.meta.env.MODE === 'demo' ? 'LD Home (Demo)' : 'LD Home'), profileBtn),
     offline, main, nav
   );
   showTab();
@@ -95,6 +95,6 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if ('serviceWorker' in navigator && import.meta.env.PROD && import.meta.env.MODE !== 'demo') {
   navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {});
 }
