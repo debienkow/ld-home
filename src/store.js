@@ -25,7 +25,18 @@ export const subscribe = (fn) => {
 const emit = () => listeners.forEach((fn) => fn());
 
 export const norm = (s) => s.trim().toLowerCase();
-export const userName = (uid) => (USERS[uid] ? USERS[uid].name : 'Unbekannt');
+export const userName = (uid) => {
+  const custom = state.profiles[uid] && state.profiles[uid].displayName;
+  return custom || (USERS[uid] ? USERS[uid].name : 'Unbekannt');
+};
+
+export const showCatHeaders = () => {
+  const p = state.user && state.profiles[state.user.uid];
+  return !(p && p.showCatHeaders === false);
+};
+
+export const saveProfile = (patch) =>
+  setDoc(doc(db, 'profiles', state.user.uid), patch, { merge: true });
 
 /* Alle bekannten Artikel: Start-Katalog + Gelerntes */
 export function catalogEntries() {

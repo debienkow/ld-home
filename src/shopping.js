@@ -1,7 +1,7 @@
 /* Tab Einkauf */
 import { el, openSheet, uid } from './dom.js';
 import {
-  addItem, catalogEntries, learn, norm, removeItem, saveSettings, setDone, state, subscribe, updateItem
+  addItem, catalogEntries, learn, norm, removeItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
 } from './store.js';
 
 let selectedStore = '';
@@ -146,7 +146,7 @@ export function mountShopping(root) {
     for (const cat of orderedCategories()) {
       const inCat = open.filter((i) => (catOf(i.categoryId).id) === cat.id).sort((a, b) => a.name.localeCompare(b.name));
       if (!inCat.length) continue;
-      blocks.push(el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name), ...inCat.map((i) => row(i, false)));
+      blocks.push(...(showCatHeaders() ? [el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name)] : []), ...inCat.map((i) => row(i, false)));
     }
     listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, 'Die Liste ist leer. Tippe oben, was ihr braucht.')]));
     if (search.value.trim()) renderSuggest();
@@ -176,7 +176,7 @@ export function mountShopping(root) {
 
   root.replaceChildren(
     el('div', { class: 'search-wrap' }, search),
-    chips, suggestBox, doneBox, listBox
+    chips, suggestBox, listBox, doneBox
   );
   render();
   return subscribe(render);
@@ -188,6 +188,9 @@ function openSettings() {
     const cats = state.settings.categories.map((c) => ({ ...c }));
     const stores = state.settings.stores.map((s) => ({ ...s, order: [...(s.order || [])] }));
     const area = el('div');
+    const headerToggle = el('label', { class: 'toggle-row' },
+      el('span', null, 'Kategorie-Überschriften anzeigen'),
+      el('input', { type: 'checkbox', checked: showCatHeaders(), onchange: (e) => saveProfile({ showCatHeaders: e.target.checked }) }));
 
     const move = (arr, i, d) => {
       const j = i + d;
@@ -233,6 +236,7 @@ function openSettings() {
       );
     }
     draw();
+    body.prepend(headerToggle);
     body.append(area, el('div', { class: 'row end' },
       el('button', { class: 'btn primary', onclick: async () => {
         if (!cats.length) return;

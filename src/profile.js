@@ -2,7 +2,7 @@
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
 import { confirmSheet, el, openSheet, shrinkImage } from './dom.js';
-import { saveProfilePhoto, state, userName } from './store.js';
+import { saveProfile, saveProfilePhoto, state, userName } from './store.js';
 
 export function avatar(uid, size = '') {
   const photo = state.profiles[uid] && state.profiles[uid].photo;
@@ -27,11 +27,20 @@ export function openProfile() {
         holder.replaceChildren(avatar(u.uid, 'big'));
       }
     });
+    const nameInput = el('input', { type: 'text', value: userName(u.uid), maxlength: '24' });
     body.append(
       el('div', { class: 'profile-top' }, holder,
         el('h3', null, userName(u.uid)), el('p', { class: 'hint' }, u.email)),
       file,
       el('button', { class: 'btn ghost wide', onclick: () => file.click() }, 'Profilbild ändern'),
+      el('label', null, 'Anzeigename', nameInput),
+      el('button', {
+        class: 'btn primary wide',
+        onclick: async () => {
+          await saveProfile({ displayName: nameInput.value.trim() });
+          close();
+        }
+      }, 'Namen speichern'),
       el('button', {
         class: 'btn danger wide',
         onclick: async () => {
