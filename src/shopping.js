@@ -1,5 +1,5 @@
 /* Tab Einkauf */
-import { el, openSheet, swipeDelete, uid } from './dom.js';
+import { el, openSheet, swipeActions, uid } from './dom.js';
 import {
   addItem, catalogEntries, learn, norm, removeItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
 } from './store.js';
@@ -122,14 +122,14 @@ export function mountShopping(root) {
     const cat = catOf(item.categoryId);
     const store = storeOf(item.store);
     const inner = el('div', { class: 'item' + (done ? ' done' : '') },
-      el('button', { class: 'item-main', type: 'button', onclick: () => setDone(item.id, !done) },
+      el('button', { class: 'item-main', type: 'button', onclick: () => openItemSheet(item) },
         iconCircle(cat),
         el('span', { class: 'item-name' }, item.name),
         item.qty && el('span', { class: 'pill' }, item.qty),
         store && el('span', { class: 'tag' }, store.name)),
       el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Bearbeiten', onclick: () => openItemSheet(item) }, '⋯')
     );
-    return swipeDelete(inner, () => removeItem(item.id));
+    return swipeActions(inner, { onLeft: () => removeItem(item.id), onRight: () => setDone(item.id, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
   }
 
   function render() {

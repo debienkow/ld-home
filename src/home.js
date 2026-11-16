@@ -1,7 +1,7 @@
 /* Tab Home */
 import { el } from './dom.js';
 import { state, subscribe } from './store.js';
-import { fmt } from './finlogic.js';
+import { fmt, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
 
@@ -26,6 +26,12 @@ export function mountHome(root, go) {
         el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
         tags.length && el('div', { class: 'tags' }, ...tags),
         !open.length && el('p', { class: 'hint' }, 'Nichts auf der Liste.')),
+      ...(state.fin.entries.filter((x) => x.planned && x.date <= todayStr()).length ? [el('section', { class: 'card note-card' },
+        el('h2', null, '⏰ Geplante Ausgabe fällig'),
+        el('p', { class: 'hint' }, 'Das Datum ist erreicht. Trag die Ausgabe jetzt final ein, wenn sie wirklich bezahlt wurde, oder lösche sie.'),
+        ...state.fin.entries.filter((x) => x.planned && x.date <= todayStr()).map((x) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
+          el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${new Date(x.date + 'T00:00').toLocaleDateString('de-DE')}`)),
+          el('span', { class: 'amount' }, fmt(x.cents)))))] : []),
       el('section', { class: 'card' },
         el('h2', { onclick: () => go('finanzen') }, '💶 Finanzen'),
         el('p', { class: 'saldo-text' }, saldoText().text),

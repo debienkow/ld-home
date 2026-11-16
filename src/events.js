@@ -5,6 +5,7 @@ import {
 } from './evlogic.js';
 import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
+import { navLink, placeField } from './places.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -30,7 +31,7 @@ export function eventRow(e, onclick) {
     circle(catOf(e.categoryId)),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${e.important ? '⭐ ' : ''}${e.title}`),
-      el('span', { class: 'hint' }, `${rangeText(e)}${e.location ? ` · ${e.location}` : ''}${days ? ` · Urlaub ${days} ${days === 1 ? 'Tag' : 'Tage'}` : ''}`)),
+      el('span', { class: 'hint' }, `${rangeText(e)}${e.location ? ` · ${e.location.split(',')[0]}` : ''}${days ? ` · Urlaub ${days} ${days === 1 ? 'Tag' : 'Tage'}` : ''}`)),
     badges(e));
 }
 
@@ -46,7 +47,8 @@ export function openEventSheet(event, preset) {
     const end = el('input', { type: 'date', value: endOf(e) });
     const startTime = el('input', { type: 'time', value: e.startTime || '' });
     const endTime = el('input', { type: 'time', value: e.endTime || '' });
-    const loc = el('input', { type: 'text', value: e.location || '', placeholder: 'Ort (optional)' });
+    let place = { text: e.location || '', lat: e.lat ?? null, lon: e.lon ?? null };
+    const locField = placeField(place.text, place, (p) => (place = p));
     const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
     const important = el('input', { type: 'checkbox', checked: !!e.important });
     const who = Object.fromEntries(PEOPLE.map((k) => [k, el('input', { type: 'checkbox', checked: parts(e).includes(k) })]));
@@ -83,7 +85,7 @@ export function openEventSheet(event, preset) {
       await saveEvent(event && event.id, {
         title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: allDay.checked,
         startTime: allDay.checked ? '' : startTime.value, endTime: allDay.checked ? '' : endTime.value,
-        location: loc.value.trim(), note: note.value.trim(), important: important.checked,
+        location: place.text.trim(), lat: place.lat, lon: place.lon, note: note.value.trim(), important: important.checked,
         participants, vacation: PEOPLE.filter((k) => vac[k].checked && participants.includes(k)), rsvp
       });
       if (preset && preset.fromIdea) await removeIdea(preset.fromIdea);
@@ -96,7 +98,7 @@ export function openEventSheet(event, preset) {
       el('label', null, 'Kategorie', cat),
       el('label', { class: 'toggle-row' }, el('span', null, 'Ganztägig'), allDay),
       el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Von', start), el('label', { class: 'grow' }, 'Bis', end)),
-      timesRow, el('label', null, 'Ort', loc), el('label', null, 'Notiz', note),
+      timesRow, locField, el('label', null, 'Notiz', note),
       el('label', { class: 'toggle-row' }, el('span', null, '⭐ Wichtig'), important),
       el('h3', null, 'Wer ist dabei?'),
       ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', null, nameOfKey(k)), who[k])),

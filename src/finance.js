@@ -7,6 +7,7 @@ import {
   myKey, nameOfKey, removeEntry, removeRecurring, saveEntry, saveFinConfig, saveRecurring, state, subscribe
 } from './store.js';
 import { importFile } from './dataio.js';
+import { addDays } from './evlogic.js';
 
 const catList = (type) => (type === 'income' ? state.fin.config.incomeCategories : state.fin.config.categories);
 const catOf = (type, id) => catList(type).find((c) => c.id === id) || (id ? { icon: '🧾', name: 'Sonstiges', color: '#9aa7c2' } : { icon: '▫️', name: 'Keine', color: '#5d6f96' });
@@ -35,16 +36,17 @@ export function openEntrySheet(entry, preset) {
     const amount = el('input', { type: 'text', inputmode: 'decimal', value: e.cents ? (e.cents / 100).toFixed(2).replace('.', ',') : '', placeholder: '0,00' });
     const date = el('input', { type: 'date', value: e.date });
     const time = el('input', { type: 'time', value: e.time || '' });
+    const timeLabel = el('label', { class: 'grow' }, 'Uhrzeit', time);
+    const dateText = el('span', null, 'Datum');
+    const future = () => type === 'expense' && !!date.value && date.value > todayStr();
     const cat = el('select');
     const payer = el('select');
     const noSplit = el('input', { type: 'checkbox', checked: e.noSplit });
-    const planned = el('input', { type: 'checkbox', checked: !!e.planned });
     const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
     const info = el('p', { class: 'hint' });
     const err = el('p', { class: 'form-info bad' });
     const catBox = el('label', null, 'Kategorie', cat);
     const splitBox = el('label', { class: 'toggle-row' }, el('span', null, 'Gesamtkosten nicht teilen (andere Person schuldet alles)'), noSplit);
-    const plannedBox = el('label', { class: 'toggle-row' }, el('span', null, 'Geplante Ausgabe (vorgemerkt, noch nicht abgebucht)'), planned);
     const payerText = el('span', null, 'Bezahlt von');
     const payerLabel = el('label', null, payerText, payer);
     const quick = el('div', { class: 'quick' });
@@ -54,19 +56,23 @@ export function openEntrySheet(entry, preset) {
       cat.replaceChildren(...opts, ...catList(type).map((c) => el('option', { value: c.id, selected: c.id === selected }, `${c.icon} ${c.name}`)));
     };
     const fillPayers = (selected) => {
-      const keys = type === 'expense' && planned.checked ? [...PEOPLE, ''] : PEOPLE;
+      const keys = future() ? [...PEOPLE, ''] : PEOPLE;
       payer.replaceChildren(...keys.map((k) => el('option', { value: k, selected: k === selected }, k ? nameOfKey(k) : PAYER_NONE)));
     };
     const refresh = () => {
-      const isPlanned = type === 'expense' && planned.checked;
+      const isPlanned = future();
+      const keep = payer.value;
+      if (isPlanned && payer.options.length !== 3) fillPayers(keep);
+      else if (!isPlanned && payer.options.length !== 2) fillPayers(PEOPLE.includes(keep) ? keep : myKey());
+      dateText.textContent = type === 'expense' ? 'Fälligkeit' : 'Datum';
+      timeLabel.classList.toggle('hidden', isPlanned);
       catBox.classList.toggle('hidden', type === 'settlement');
       splitBox.classList.toggle('hidden', type !== 'expense');
-      plannedBox.classList.toggle('hidden', type !== 'expense');
       quick.classList.toggle('hidden', !!entry || type !== 'expense' || !quick.children.length);
       payerText.textContent = type === 'income' ? 'Eingegangen bei (Konto von)' : type === 'settlement' ? 'Wer zahlt den Ausgleich?' : isPlanned ? 'Wird abgebucht von' : 'Bezahlt von';
       info.textContent = type === 'settlement' && payer.value
         ? `${nameOfKey(payer.value)} zahlt an ${nameOfKey(otherOf(payer.value))}`
-        : isPlanned ? 'Wird erst eingerechnet, sobald du die Ausgabe verbuchst.' : '';
+        : isPlanned ? 'Liegt in der Zukunft: wird als geplante Ausgabe vorgemerkt und erst eingerechnet, wenn du sie verbuchst.' : '';
       seg.replaceChildren(...[['expense', 'Ausgabe'], ['income', 'Einnahme'], ['settlement', 'Ausgleich']].map(([k, l]) =>
         el('button', { type: 'button', class: 'seg-btn' + (type === k ? ' active' : ''), onclick: () => {
           const prev = payer.value;
@@ -87,7 +93,7 @@ export function openEntrySheet(entry, preset) {
     fillCats(entry ? e.categoryId : e.categoryId || (type === 'income' ? 'gehalt' : ''));
     fillPayers(e.payer);
     payer.addEventListener('change', refresh);
-    planned.addEventListener('change', () => { fillPayers(planned.checked ? '' : myKey()); refresh(); });
+    date.addEventListener('change', refresh);
     cat.addEventListener('change', () => (catTouched = true));
 
     quick.replaceChildren(...presets().map((p) => el('button', { type: 'button', class: 'chip', onclick: () => {
@@ -125,7 +131,7 @@ export function openEntrySheet(entry, preset) {
 
     const save = async (book) => {
       const cents = parseMoney(amount.value);
-      const isPlanned = type === 'expense' && planned.checked && !book;
+      const isPlanned = future() && !book;
       if (cents === null || cents === 0) return (err.textContent = 'Bitte einen gültigen Betrag eingeben.');
       if (!title.value.trim() && type !== 'settlement') return (err.textContent = 'Bitte einen Titel eingeben.');
       if (!date.value) return (err.textContent = 'Bitte ein Datum wählen.');
@@ -135,7 +141,7 @@ export function openEntrySheet(entry, preset) {
         title: title.value.trim() || 'Haushaltsausgleich',
         cents,
         date: book ? todayStr() : date.value,
-        time: time.value || '',
+        time: isPlanned ? '' : time.value || '',
         payer: payer.value,
         categoryId: type === 'settlement' ? 'ausgleich' : cat.value,
         noSplit: type === 'expense' && noSplit.checked,
@@ -150,10 +156,10 @@ export function openEntrySheet(entry, preset) {
       seg, quick,
       el('label', null, 'Titel', title), suggest,
       el('label', null, 'Betrag (€)', amount),
-      el('div', { class: 'row' }, el('label', { class: 'grow' }, type === 'expense' && e.planned ? 'Voraussichtlich am' : 'Datum', date), el('label', { class: 'grow' }, 'Uhrzeit', time)),
-      catBox, payerLabel, splitBox, plannedBox, info,
+      el('div', { class: 'row' }, el('label', { class: 'grow' }, dateText, date), timeLabel),
+      catBox, payerLabel, splitBox, info,
       el('label', null, 'Notiz', note), err,
-      ...(entry && entry.planned ? [el('button', { class: 'btn primary wide', type: 'button', onclick: () => { planned.checked = false; save(true); } }, 'Jetzt als bezahlt verbuchen')] : []),
+      ...(entry && entry.planned ? [el('button', { class: 'btn primary wide', type: 'button', onclick: () => save(true) }, 'Jetzt als bezahlt verbuchen')] : []),
       el('div', { class: 'row between' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Eintrag löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEntry(entry.id); close(); }
@@ -454,20 +460,27 @@ export function mountFinance(root) {
   const subnav = el('div', { class: 'chips' });
   const toolbar = el('div', { class: 'search-wrap' });
   const content = el('div');
-  const search = el('input', { type: 'search', class: 'search', placeholder: 'Suchen …', oninput: (e) => { view.q = e.target.value; draw(); } });
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { planned: true, payer: '' } : null) }, '+');
+  const search = el('input', { type: 'search', class: 'search', placeholder: 'Suchen …', oninput: (e) => { view.q = e.target.value; drawContent(); } });
+  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { date: addDays(todayStr(), 1), payer: '' } : null) }, '+');
 
   const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['geplant', 'Geplant'], ['laufend', 'Laufende Kosten']];
-  function draw() {
-    subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; view.q = ''; search.value = ''; view.monthsShown = 3; draw(); } }, l)),
-      el('button', { class: 'chip gear', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, '⚙︎'));
-    toolbar.replaceChildren(...(view.sub === 'ausgaben' || view.sub === 'einnahmen' ? [search] : []));
-    toolbar.classList.toggle('hidden', !toolbar.children.length);
-    fab.classList.toggle('hidden', view.sub === 'laufend');
+  function drawContent() {
     if (view.sub === 'uebersicht') renderOverview(content);
     else if (view.sub === 'laufend') renderRecurring(content);
     else if (view.sub === 'geplant') renderPlanned(content);
     else renderList(content, view.sub === 'einnahmen' ? 'income' : 'expense', view);
+  }
+  let toolSub = null;
+  function draw() {
+    subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; view.q = ''; search.value = ''; view.monthsShown = 3; draw(); } }, l)),
+      el('button', { class: 'chip gear', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, '⚙︎'));
+    if (toolSub !== view.sub) {
+      toolSub = view.sub;
+      toolbar.replaceChildren(...(view.sub === 'ausgaben' || view.sub === 'einnahmen' ? [search] : []));
+      toolbar.classList.toggle('hidden', !toolbar.children.length);
+    }
+    fab.classList.toggle('hidden', view.sub === 'laufend');
+    drawContent();
   }
   view.redraw = draw;
   root.replaceChildren(subnav, toolbar, content, fab);

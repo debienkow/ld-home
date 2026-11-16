@@ -60,21 +60,27 @@ export function confirmSheet(title, text, okLabel) {
   });
 }
 
-/* Element nach links wischen zum Löschen (nur Touch) */
-export function swipeDelete(node, onDelete) {
-  const wrap = el('div', { class: 'swipe' }, el('span', { class: 'swipe-bg' }, '🗑 Löschen'), node);
+/* Wischen: links = Löschen, rechts = eigene Aktion */
+export function swipeActions(node, { onLeft, onRight, rightLabel = '✓ Erledigt' }) {
+  const wrap = el('div', { class: 'swipe' },
+    onRight && el('span', { class: 'swipe-bg right' }, rightLabel),
+    onLeft && el('span', { class: 'swipe-bg left' }, '🗑 Löschen'), node);
   let sx = 0, sy = 0, dx = 0, lock = null, moved = false;
   node.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     sx = e.clientX; sy = e.clientY; dx = 0; lock = null; moved = false;
   });
   node.addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'mouse' || !sx) return;
+    if (!sx) return;
     const mx = e.clientX - sx, my = e.clientY - sy;
-    if (!lock && (Math.abs(mx) > 8 || Math.abs(my) > 8)) lock = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+    if (!lock && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
+      lock = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+      if (lock === 'x') { try { node.setPointerCapture(e.pointerId); } catch (x) { /* ignorieren */ } }
+    }
     if (lock !== 'x') return;
-    dx = Math.min(0, mx);
+    dx = mx < 0 ? (onLeft ? mx : 0) : (onRight ? mx : 0);
     moved = true;
+    wrap.classList.toggle('to-right', dx > 0);
     node.style.transition = 'none';
     node.style.transform = `translateX(${dx}px)`;
   });
@@ -82,9 +88,11 @@ export function swipeDelete(node, onDelete) {
     if (!sx) return;
     sx = 0;
     node.style.transition = 'transform .15s';
-    if (dx < -Math.max(90, wrap.offsetWidth * 0.3)) {
-      node.style.transform = 'translateX(-105%)';
-      setTimeout(onDelete, 150);
+    const limit = Math.max(90, wrap.offsetWidth * 0.3);
+    const act = dx < -limit ? onLeft : dx > limit ? onRight : null;
+    if (act) {
+      node.style.transform = `translateX(${dx < 0 ? '-105%' : '105%'})`;
+      setTimeout(act, 150);
     } else node.style.transform = '';
   };
   node.addEventListener('pointerup', end);
@@ -92,6 +100,7 @@ export function swipeDelete(node, onDelete) {
   node.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
   return wrap;
 }
+export const swipeDelete = (node, onDelete) => swipeActions(node, { onLeft: onDelete });
 
 export function uid() {
   return Math.random().toString(36).slice(2, 10);
