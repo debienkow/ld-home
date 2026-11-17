@@ -5,6 +5,7 @@ import { fmt, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { docRow, openDocSheet, recentDocs } from './dms.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
+import { contractTitle, dueSoon, openCompany } from './companies.js';
 
 const dateDe = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE');
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Hallo' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Moin' : 'Guten Abend'; };
@@ -26,6 +27,7 @@ export function mountHome(root, go) {
     const tags = Object.entries(byStore).map(([n, c]) => el('span', { class: 'tag big' }, `${n}: ${c}`));
     const due = state.fin.entries.filter((x) => x.planned && x.date <= todayStr());
     const saldo = saldoText();
+    const notice = dueSoon();
     const pending = upcoming().filter(needsAnswer);
     const rest = upcoming().filter((e) => !pending.includes(e));
     const sub = (t) => el('h3', { class: 'section-title card-sub' }, t);
@@ -42,6 +44,12 @@ export function mountHome(root, go) {
         ...due.map((x) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
           el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${dateDe(x.date)}`)),
           el('span', { class: 'amount' }, fmt(x.cents)))))] : []),
+      ...(notice.length ? [el('section', { class: 'card note-card warn' },
+        el('h2', null, notice.length === 1 ? 'Kündigungsfrist naht' : `${notice.length} Kündigungsfristen nahen`),
+        el('p', { class: 'hint' }, 'Wenn ihr kündigen oder wechseln wollt, jetzt kümmern.'),
+        ...notice.map((n) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openCompany(n.c) },
+          el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, `🏢 ${contractTitle(n.c, n.k)}`), el('span', { class: 'hint' }, `Kündigen bis ${dateDe(n.deadline)}`)),
+          el('span', { class: 'amount' }, n.days === 0 ? 'heute' : `${n.days} T.`))))] : []),
       el('div', { class: 'grid' },
         el('section', { class: 'card' },
           head('einkauf', 'Einkaufsliste', go),

@@ -4,6 +4,7 @@ import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages,
 import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
 import { todayIso } from './evlogic.js';
+import { companyById, companyCard, companyField, findCompanies, openCompany, openCompanyList } from './companies.js';
 
 const cats = () => state.dms.config.categories || DEFAULT_DMS_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -127,6 +128,7 @@ function openDocView(doc) {
     body.append(
       strip, status,
       el('div', { class: 'info-list' },
+        ...(companyById(doc.companyId) ? [el('button', { type: 'button', class: 'info-row link-row', onclick: () => openCompany(companyById(doc.companyId)) }, el('span', { class: 'hint' }, 'Unternehmen'), el('span', null, `🏢 ${companyById(doc.companyId).name} ›`))] : []),
         info('Kategorie', `${c.icon} ${c.name}`),
         info('Datum', doc.date ? dateText(doc.date) : ''),
         info('Seiten', String(doc.pageCount || '')),
@@ -165,6 +167,7 @@ export function openDocSheet(doc, edit = false) {
     title.addEventListener('input', () => (touchedTitle = true));
     const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: doc && c.id === doc.categoryId }, `${c.icon} ${c.name}`)));
     const tags = tagField(doc ? doc.tags : []);
+    const company = companyField(doc ? doc.companyId : '');
     const date = el('input', { type: 'date', value: doc ? doc.date : todayIso() });
     const note = el('input', { type: 'text', value: doc ? doc.note || '' : '', placeholder: 'Notiz (optional)' });
     let loading = !!doc;
@@ -229,7 +232,7 @@ export function openDocSheet(doc, edit = false) {
       const fresh = pages.filter((p) => p.isNew).map((p) => ({ idx: ++idx, img: p.img }));
       try {
         await saveDms(doc && doc.id, {
-          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), date: date.value || todayIso(),
+          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), companyId: await company.value(), date: date.value || todayIso(),
           note: note.value.trim(), text: text.value.slice(0, 400000), pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
@@ -246,6 +249,7 @@ export function openDocSheet(doc, edit = false) {
       el('button', { class: 'link-btn', type: 'button', onclick: () => camera.click() }, 'Einzelfoto mit Kamera-App'),
       camera, gallery, strip, status,
       el('label', null, 'Titel', title), el('label', null, 'Kategorie', cat),
+      el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Unternehmen'), company.node),
       el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Stichworte'), tags.node), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
       el('label', null, 'Erkannter Text', text),
       el('div', { class: 'row wrap' },
@@ -291,7 +295,7 @@ export function docRow(d) {
     d.thumb ? el('img', { class: 'doc-thumb', src: d.thumb, alt: '' }) : el('span', { class: 'circle', style: { background: cat.color } }, cat.icon),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, d.title),
-      el('span', { class: 'hint' }, `${cat.icon} ${cat.name} · ${dateText(d.date)}${d.pageCount > 1 ? ` · ${d.pageCount} Seiten` : ''}${(d.tags || []).length ? ` · ${d.tags.join(', ')}` : ''}`)));
+      el('span', { class: 'hint' }, `${companyById(d.companyId) ? `🏢 ${companyById(d.companyId).name} · ` : ''}${cat.icon} ${cat.name} · ${dateText(d.date)}${d.pageCount > 1 ? ` · ${d.pageCount} Seiten` : ''}${(d.tags || []).length ? ` · ${d.tags.join(', ')}` : ''}`)));
 }
 
 export function mountDms(root) {
@@ -306,6 +310,7 @@ export function mountDms(root) {
     chips.replaceChildren(
       el('button', { class: 'chip' + (!view.cat ? ' active' : ''), onclick: () => { view.cat = ''; drawChips(); drawList(); } }, 'Alle'),
       ...cats().map((c) => el('button', { class: 'chip' + (view.cat === c.id ? ' active' : ''), onclick: () => { view.cat = c.id; drawChips(); drawList(); } }, `${c.icon} ${c.name}`)),
+      el('button', { class: 'chip', type: 'button', onclick: openCompanyList }, '🏢 Unternehmen'),
       view.tag
         ? el('button', { class: 'chip active', type: 'button', onclick: () => { view.tag = ''; drawChips(); drawList(); } }, `# ${view.tag} ×`)
         : el('button', { class: 'chip', type: 'button', onclick: openTagIndex }, '# Stichworte'),
@@ -313,18 +318,20 @@ export function mountDms(root) {
   }
   function drawList() {
     const q = view.q.trim().toLowerCase();
+    const hitCos = findCompanies(q);
+    const coIds = new Set(hitCos.map((x) => x.id));
     const docs = state.dms.docs
-      .filter((d) => (!view.cat || d.categoryId === view.cat) && (!view.tag || (d.tags || []).some((t) => t.toLowerCase() === view.tag.toLowerCase())) && (!q || `${d.title} ${(d.tags || []).join(' ')} ${d.note || ''} ${d.text || ''}`.toLowerCase().includes(q)))
+      .filter((d) => (!view.cat || d.categoryId === view.cat) && (!view.tag || (d.tags || []).some((t) => t.toLowerCase() === view.tag.toLowerCase())) && (!q || coIds.has(d.companyId) || `${(companyById(d.companyId) || {}).name || ''} ${d.title} ${(d.tags || []).join(' ')} ${d.note || ''} ${d.text || ''}`.toLowerCase().includes(q)))
       .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
     usage.replaceChildren(usageCard());
-    const rows = [];
+    const rows = hitCos.length ? [el('h3', { class: 'section-title' }, 'Kundendaten'), ...hitCos.map(companyCard)] : [];
     let year = '';
     for (const d of docs) {
       const y = (d.date || '').slice(0, 4);
       if (y !== year) { year = y; rows.push(el('h3', { class: 'section-title month' }, el('span', null, y || 'Ohne Datum'))); }
       rows.push(docRow(d));
     }
-    list.replaceChildren(...(docs.length ? rows : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
+    list.replaceChildren(...(docs.length || hitCos.length ? rows : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
   }
   function openTagIndex() {
     openSheet('Stichworte', (body, close) => {

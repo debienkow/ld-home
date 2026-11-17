@@ -178,6 +178,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(collection(db, 'events'), (snap) => {
       state.ev.events = cleanEvents(rows(snap));
+      state.ev.loaded = true;
       emit();
     }, snapError)
   );
@@ -203,6 +204,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(doc(db, 'config', 'dms'), (snap) => {
       if (snap.exists()) { const d = snap.data(); state.dms.config = { ...d, categories: listOr(d.categories, DEFAULT_DMS_CATEGORIES) }; }
+      state.dms.cfgLoaded = true;
       emit();
     }, snapError)
   );

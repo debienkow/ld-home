@@ -386,3 +386,21 @@ wc-pick { display: block; min-width: 0; }
 .tag-sugg:empty { display: none; }
 .chips.wrap { flex-wrap: wrap; overflow: visible; }
 .chip-count { margin-left: 6px; font-size: .78rem; color: var(--muted); }
+
+/* Unternehmen */
+.company-card .circle { background: var(--card-2); }
+.company-card .more { color: var(--muted); font-size: 1.3rem; }
+.info-val { display: inline-flex; align-items: center; gap: 4px; text-align: right; overflow-wrap: anywhere; justify-content: flex-end; }
+.info-val a { color: var(--primary); }
+.icon-btn.small { min-width: 34px; min-height: 34px; font-size: 1rem; }
+.link-row { width: 100%; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: none; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.link-row > span:last-child { color: var(--primary); }
+.card.contract { background: var(--card-2); }
+.card.contract.warn, .note-card.warn { box-shadow: inset 4px 0 0 var(--warn, #f0a04b); }
+.deadline { font-weight: 600; color: var(--primary); margin: 8px 0 0; }
+.card.contract.warn .deadline { color: var(--warn, #f0a04b); }
+.pre { white-space: pre-wrap; }
+.contract-edit { background: var(--card-2); display: grid; gap: 10px; }
+.row.kv input { flex: 1; min-width: 0; }
+.danger-text { color: var(--danger); }
+.edit-list { display: grid; gap: 8px; }

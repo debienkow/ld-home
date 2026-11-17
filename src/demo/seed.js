@@ -16,8 +16,12 @@ export function seed() {
     v3: { title: 'Hochzeit Anna & Tim', categoryId: 'feier', start: iso(220), end: iso(220), allDay: true, participants: ['dudi', 'logi'], rsvp: { logi: 'yes' }, vacation: [], important: false, createdAt: Date.now() }
   };
   return {
-    items, catalog: {}, profiles: {}, fin_entries: fin, fin_recurring: rec, config: { finance: { salaries: { logi: 219373, dudi: 237298 } } },
+    items, catalog: {}, profiles: {}, fin_entries: fin, fin_recurring: rec, config: { finance: { salaries: { logi: 219373, dudi: 237298 } }, dms: { companies: [
+      { id: 'cw', name: 'Willy.Tel', aliases: ['Willytel', 'Internet'], customerNo: 'K-123456', phone: '040 5555 0000', email: 'service@example.com', web: 'example.com/kundenportal', login: 'dudi.beispiel', address: '', note: 'Tarif 250 Mbit', fields: [{ label: 'Router', value: 'FritzBox 7590' }],
+        contracts: [{ id: 'k1', name: 'Internet 250', number: 'V-998877', start: '2025-01-20', end: '' + iso(45) + '', notice: 1, unit: 'm', renew: 12, remind: 30, amount: '39,90 € / Monat' }] },
+      { id: 'ce', name: 'E-Primo', aliases: ['Strom'], customerNo: '7700-1', phone: '', email: '', web: '', login: '', address: '', note: '', fields: [], contracts: [{ id: 'k2', name: 'Strom', number: '', start: '2024-06-01', end: '2026-05-31', notice: 6, unit: 'w', renew: 12, remind: 30, amount: '' }] }
+    ] } },
     events, event_ideas: { a1: { title: 'Wochenende an der Ostsee', note: '', createdAt: Date.now() } },
-    dms_docs: { m1: { title: 'Mietvertrag', categoryId: 'vertrag', tags: ['miete'], date: iso(-100), note: '', text: 'Mietvertrag Beispiel', pageCount: 1, bytes: 180000, createdAt: Date.now() }, m2: { title: 'Hausratversicherung Police', categoryId: 'versicherung', tags: ['miete', 'versicherung', 'wohnung hamburg altona', 'jährliche zahlung'], date: '2024-03-12', note: '', text: '', pageCount: 2, bytes: 240000, createdAt: Date.now() - 1000 } }, dms_pages: {}
+    dms_docs: { m3: { title: 'Auftragsbestätigung Internet', categoryId: 'vertrag', companyId: 'cw', tags: ['internet'], date: '2025-01-20', note: '', text: '', pageCount: 1, bytes: 90000, createdAt: Date.now() - 2000 }, m1: { title: 'Mietvertrag', categoryId: 'vertrag', tags: ['miete'], date: iso(-100), note: '', text: 'Mietvertrag Beispiel', pageCount: 1, bytes: 180000, createdAt: Date.now() }, m2: { title: 'Hausratversicherung Police', categoryId: 'versicherung', tags: ['miete', 'versicherung', 'wohnung hamburg altona', 'jährliche zahlung'], date: '2024-03-12', note: '', text: '', pageCount: 2, bytes: 240000, createdAt: Date.now() - 1000 } }, dms_pages: {}
   };
 }

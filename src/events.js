@@ -14,7 +14,7 @@ const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 
 const circle = (cat, small) => el('span', { class: 'circle' + (small ? ' small' : ''), style: { background: cat.color } }, cat.icon);
 const parts = (e) => e.participants || PEOPLE;
 const myRsvp = (e) => (e.rsvp && e.rsvp[myKey()]) || '';
-export const needsAnswer = (e) => endOf(e) >= todayIso() && parts(e).includes(myKey()) && !myRsvp(e);
+export const needsAnswer = (e) => e.kind !== 'deadline' && endOf(e) >= todayIso() && parts(e).includes(myKey()) && !myRsvp(e);
 
 export function upcoming(limit) {
   const t = todayIso();
