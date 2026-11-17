@@ -1,6 +1,6 @@
 /* Google-Kalender-Sync über ein Apps-Script (Web-App im Google-Konto) */
 import { endOf, addDays, todayIso } from './evlogic.js';
-import { removeEvent, saveEvConfig, saveEvent, state } from './store.js';
+import { removeEvent, replaceEvConfigField, saveEvConfig, saveEvent, state } from './store.js';
 
 export const gcalConfig = () => state.ev.config.gcal || null;
 export const validGcalUrl = (u) => /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(u || '').trim());
@@ -40,17 +40,36 @@ function withKeys(gevs) {
 }
 const newLocal = (g) => ({ ...fromG(g), categoryId: 'sonstiges', important: false, participants: ['dudi', 'logi'], vacation: [], rsvp: {}, gid: g.gid, ...(g.series ? { gkey: g.key, gser: true } : {}), gsyncedAt: g.updated || Date.now(), createdBy: state.user.uid, createdAt: Date.now() });
 
+/* Gelöschte Termine: Ids dieser Sitzung und Google-Ids als Grabstein in config/events.gdel */
+const dead = new Set();
+const deadG = new Set();
+const tombs = () => state.ev.config.gdel || {};
+const alive = (id) => !dead.has(id) && state.ev.events.some((x) => x.id === id);
+
 /* Nach dem Speichern eines Termins nach Google schreiben */
 export async function pushEvent(id, event) {
-  if (!gcalReady() || event.gser) return;
+  if (!gcalReady() || event.gser || dead.has(id)) return;
   try {
     const r = await call('upsert', { event: toG(event) });
+    if (dead.has(id)) { await call('delete', { gid: r.gid }).catch(() => {}); return; }
     await saveEvent(id, { gid: r.gid, gsyncedAt: r.updated || Date.now() });
   } catch (e) { /* wird beim nächsten Abgleich nachgeholt */ }
 }
 export async function pushDelete(gid) {
   if (!gcalReady() || !gid) return;
   try { await call('delete', { gid }); } catch (e) { /* ignorieren */ }
+}
+
+/* Termin löschen, auch in Google, ohne dass er beim Abgleich zurückkommt */
+export async function deleteEvent(event) {
+  dead.add(event.id);
+  const cur = state.ev.events.find((x) => x.id === event.id) || event;
+  await removeEvent(event.id);
+  if (cur.gid) {
+    deadG.add(cur.gid);
+    await saveEvConfig({ gdel: { [cur.gid]: Date.now() } });
+    pushDelete(cur.gid);
+  }
 }
 
 const FRESH = 10 * 60 * 1000;
@@ -64,13 +83,20 @@ export async function syncNow(opts = {}) {
     const res = await call('list', { from, to });
     if (!Array.isArray(res.events)) throw new Error('antwort');
     if (!state.user) return { ok: false };
-    const gevs = withKeys(res.events);
+    const tomb = tombs();
+    const all = withKeys(res.events);
+    for (const gid of new Set(all.filter((g) => tomb[g.gid]).map((g) => g.gid))) await call('delete', { gid }).catch(() => {});
+    const gevs = all.filter((g) => !tomb[g.gid]);
+    const listed = new Set(all.map((g) => g.gid));
+    const stale = Object.keys(tomb).filter((gid) => !listed.has(gid) && Date.now() - tomb[gid] > 86400000);
+    if (stale.length) await replaceEvConfigField({ gdel: Object.fromEntries(Object.entries(tomb).filter(([gid]) => !stale.includes(gid))) });
     const byKey = new Map(gevs.map((g) => [g.key, g]));
-    const local = state.ev.events;
+    const local = state.ev.events.filter((e) => !dead.has(e.id));
     const localByKey = new Map(local.filter((e) => e.gid).map((e) => [keyOfLocal(e), e]));
     let changes = 0;
     for (const g of byKey.values()) {
       const e = localByKey.get(g.key);
+      if (deadG.has(g.gid) || tombs()[g.gid]) continue;
       if (!e) {
         await saveEvent(idFor(g.key), newLocal(g));
         changes++;
@@ -86,8 +112,8 @@ export async function syncNow(opts = {}) {
     const risky = (!gevs.length && gone.length >= 2) || (gone.length > 5 && gone.length > synced.length / 2);
     if (risky && !opts.force) skipped = gone.length;
     else for (const e of gone) { await removeEvent(e.id); changes++; }
-    for (const e of local) {
-      if (!e.gid && inRange(e) && e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
+    for (const e of state.ev.events) {
+      if (!e.gid && alive(e.id) && inRange(e) && e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
     }
     return { ok: true, changes, skipped };
   } catch (err) {
@@ -101,9 +127,10 @@ export async function importOld() {
   try {
     const res = await call('listAll', { from: '2000-01-01', to: addDays(todayIso(), -31) });
     const have = new Set(state.ev.events.filter((e) => e.gid).map(keyOfLocal));
+    const tomb = tombs();
     let n = 0;
     for (const g of withKeys(res.events || [])) {
-      if (have.has(g.key)) continue;
+      if (have.has(g.key) || tomb[g.gid]) continue;
       have.add(g.key);
       await saveEvent(idFor(g.key), newLocal(g));
       n++;

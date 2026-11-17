@@ -291,6 +291,7 @@ export const saveIdea = (id, data) =>
 export const removeIdea = (id) => settle(deleteDoc(doc(db, 'event_ideas', id)));
 export const restoreIdea = (idea) => settle(setDoc(doc(db, 'event_ideas', idea.id), strip(idea)));
 export const saveEvConfig = (patch) => settle(setDoc(doc(db, 'config', 'events'), patch, { merge: true }));
+export const replaceEvConfigField = (patch) => settle(updateDoc(doc(db, 'config', 'events'), patch));
 
 export const saveDmsConfig = (patch) => settle(setDoc(doc(db, 'config', 'dms'), patch, { merge: true }));
 export async function loadPages(docId) {

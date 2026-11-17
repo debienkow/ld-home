@@ -7,7 +7,7 @@ import { myKey, nameOfKey, removeEvent, removeIdea, restoreIdea, saveEvConfig, s
 import { PEOPLE } from './finlogic.js';
 import { keyAvatar } from './profile.js';
 import { placeField } from './places.js';
-import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
+import { deleteEvent, gcalReady, gcalPing, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -28,7 +28,7 @@ const badges = (e) => el('span', { class: 'rsvp-badges' }, ...parts(e).map((k) =
 }));
 
 export function eventRow(e, onclick, plain) {
-  return el('button', { class: 'item fin-row ev-row' + (e.important && !plain ? ' important' : ''), type: 'button', onclick: onclick || (() => openEventSheet(e)) },
+  return el('button', { class: 'item fin-row ev-row' + '', type: 'button', onclick: onclick || (() => openEventSheet(e)) },
     circle(catOf(e.categoryId)),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${e.important ? '⭐ ' : ''}${e.title}`),
@@ -120,7 +120,7 @@ export function openEventSheet(event, preset) {
       err,
       el('div', { class: 'row between actions' },
         event && !e.gser ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?${event.gid ? ' Er wird auch im Google Kalender gelöscht.' : ''}`, 'Löschen')) { await removeEvent(event.id); pushDelete(event.gid); close(); }
+          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?${event.gid ? ' Er wird auch im Google Kalender gelöscht.' : ''}`, 'Löschen')) { await deleteEvent(event); close(); }
         } }, 'Löschen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: save }, 'Speichern'))
     );
