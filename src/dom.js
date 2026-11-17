@@ -91,11 +91,18 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* Platz für die Bildschirmtastatur */
+export const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (isIOS) document.documentElement.classList.add('ios');
 if (window.visualViewport) {
   const vv = window.visualViewport;
-  const setKb = () => document.documentElement.style.setProperty('--kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+  const root = document.documentElement.style;
+  /* iOS verschiebt bei offener Tastatur den sichtbaren Bereich: Fenster an diesen Bereich heften */
+  const setKb = isIOS
+    ? () => { root.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`); root.setProperty('--vvh', `${Math.round(vv.height)}px`); }
+    : () => root.setProperty('--kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
   vv.addEventListener('resize', setKb);
   vv.addEventListener('scroll', setKb);
+  setKb();
 }
 
 /* Handy: Eingabefeld beim Tippen nach oben holen, damit Vorschläge darunter sichtbar bleiben */
@@ -107,17 +114,17 @@ if (touchUi) {
     if (!typable(t)) return;
     const sheet = t.closest('.sheet');
     if (!sheet) return;
-    document.documentElement.classList.add('typing');
     const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
     const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    const needs = !!t.closest('.tag-input, .place-field, .field') || t.dataset.sugg === '1' || t.getBoundingClientRect().top > vh * 0.4;
-    if (!needs) return;
+    const sugg = !!t.closest('.tag-input, .place-field, .field') || t.dataset.sugg === '1';
+    if (!sugg && (isIOS || t.getBoundingClientRect().top <= vh * 0.4)) return;
+    document.documentElement.classList.add('typing');
     setTimeout(() => {
       if (document.activeElement !== t) return;
       const head = sheet.querySelector('.sheet-head');
       const top = anchor.getBoundingClientRect().top - sheet.getBoundingClientRect().top - (head ? head.offsetHeight : 0) - 10;
       sheet.scrollBy({ top, behavior: 'smooth' });
-    }, 320);
+    }, isIOS ? 500 : 320);
   });
   document.addEventListener('focusout', () => setTimeout(() => { if (!typable(document.activeElement)) document.documentElement.classList.remove('typing'); }, 150));
 }

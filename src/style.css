@@ -467,3 +467,8 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .viewer-nav.prev { left: 8px; } .viewer-nav.next { right: 8px; }
 .viewer-nav:disabled { opacity: 0; pointer-events: none; }
 @media (min-width: 700px) { .backdrop:has(.sheet.viewer) { padding: 0; } }
+
+/* iOS: Fenster folgen dem sichtbaren Bereich über der Tastatur */
+html.ios .backdrop { inset: auto 0 auto 0; top: var(--vvt, 0px); height: var(--vvh, 100dvh); padding-bottom: 0; }
+html.ios .sheet { max-height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top, 0px) - 12px); }
+@media (min-width: 700px) { html.ios .backdrop { padding: 24px; } html.ios .sheet { max-height: calc(var(--vvh, 100dvh) - 48px); } }
