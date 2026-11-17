@@ -34,6 +34,7 @@ function guardClick(node, fn) {
 
 /* Symbole der Navigation */
 const ICONS = {
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/>',
   home: '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h4.5v-5h3v5H18v-9"/>',
   finanzen: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M15.5 14.5h2"/>',
   events: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8.5 3v4M15.5 3v4"/>',

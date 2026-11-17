@@ -350,3 +350,9 @@ wc-pick { display: block; min-width: 0; }
 .tp-cell { min-height: 42px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 .tp-cell.sel { background: var(--primary-fill); border-color: var(--primary-fill); color: var(--primary-text); font-weight: 700; }
 .tp-cell:disabled { opacity: .35; cursor: default; }
+
+/* Ziehen zum Aktualisieren */
+.pull { position: fixed; top: calc(var(--top) + env(safe-area-inset-top, 0px)); left: 50%; z-index: 9; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--card-2); color: var(--muted); box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, -50px); pointer-events: none; }
+.pull.ready { color: var(--primary); }
+.pull.spin .ico { animation: pullspin .8s linear infinite; }
+@keyframes pullspin { to { transform: rotate(360deg); } }

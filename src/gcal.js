@@ -77,7 +77,7 @@ export async function deleteEvent(event) {
   }
 }
 
-const FRESH = 3 * 60 * 1000;
+const FRESH = 60 * 1000;
 let running = null;
 /* Google -> App und fehlende Termine hochladen */
 export function syncNow(opts = {}) {

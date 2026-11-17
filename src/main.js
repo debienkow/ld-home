@@ -14,6 +14,8 @@ import { mountFinance } from './finance.js';
 import { mountEvents, needsAnswer, upcoming } from './events.js';
 import { mountDms } from './dms.js';
 import { startGcalSync } from './gcal.js';
+import { startPull } from './pull.js';
+let pullOn = false;
 
 const root = document.getElementById('app');
 const DEMO = import.meta.env.MODE === 'demo';
@@ -113,6 +115,7 @@ onAuthStateChanged(auth, (user) => {
     startStore(user);
     renderShell();
     startGcalSync();
+    if (!pullOn) { pullOn = true; startPull(); }
   }
 });
 
