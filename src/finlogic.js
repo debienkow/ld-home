@@ -57,8 +57,11 @@ export const monthLabel = (ym) => {
 export function balance(entries) {
   let twice = 0;
   for (const e of entries) {
-    if (e.type === 'income') continue;
     if (e.planned) continue;
+    if (e.type === 'income') {
+      if (!e.noSplit) twice += (e.payer === 'dudi' ? -1 : 1) * e.cents;
+      continue;
+    }
     const full = e.noSplit || e.type === 'settlement';
     twice += (e.payer === 'dudi' ? 1 : -1) * (full ? 2 * e.cents : e.cents);
   }

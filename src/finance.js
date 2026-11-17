@@ -42,11 +42,14 @@ export function openEntrySheet(entry, preset) {
     const cat = el('select');
     const payer = el('select');
     const noSplit = el('input', { type: 'checkbox', checked: e.noSplit });
+    let splitTouched = !!entry;
+    noSplit.addEventListener('change', () => (splitTouched = true));
     const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
     const info = el('p', { class: 'hint' });
     const err = el('p', { class: 'form-info bad' });
     const catBox = el('label', null, 'Kategorie', cat);
-    const splitBox = el('label', { class: 'toggle-row' }, el('span', null, 'Gesamtkosten nicht teilen (andere Person schuldet alles)'), noSplit);
+    const splitText = el('span');
+    const splitBox = el('label', { class: 'toggle-row' }, splitText, noSplit);
     const payerText = el('span', null, 'Bezahlt von');
     const payerLabel = el('label', null, payerText, payer);
     const quick = el('div', { class: 'quick' });
@@ -67,7 +70,10 @@ export function openEntrySheet(entry, preset) {
       dateText.textContent = type === 'expense' ? 'Fälligkeit' : 'Datum';
       timeLabel.classList.toggle('hidden', isPlanned);
       catBox.classList.toggle('hidden', type === 'settlement');
-      splitBox.classList.toggle('hidden', type !== 'expense');
+      splitBox.classList.toggle('hidden', type === 'settlement');
+      splitText.textContent = type === 'income'
+        ? `Nicht teilen (gehört allein ${payer.value ? nameOfKey(payer.value) : 'dem Empfänger'}, z. B. Gehalt)`
+        : 'Gesamtkosten nicht teilen (andere Person schuldet alles)';
       quick.classList.toggle('hidden', !!entry || type !== 'expense' || !quick.children.length);
       payerText.textContent = type === 'income' ? 'Eingegangen bei (Konto von)' : type === 'settlement' ? 'Wer zahlt den Ausgleich?' : isPlanned ? 'Wird abgebucht von' : 'Bezahlt von';
       info.textContent = type === 'settlement' && payer.value
@@ -77,7 +83,8 @@ export function openEntrySheet(entry, preset) {
         el('button', { type: 'button', class: 'seg-btn' + (type === k ? ' active' : ''), onclick: () => {
           const prev = payer.value;
           type = k; catTouched = false;
-          fillCats(k === 'income' ? 'gehalt' : '');
+          fillCats(k === 'income' ? 'sonstige-einnahme' : '');
+          if (!splitTouched) noSplit.checked = false;
           if (k === 'settlement') {
             const b = balance(state.fin.entries);
             if (!title.value.trim()) title.value = 'Haushaltsausgleich';
@@ -90,11 +97,14 @@ export function openEntrySheet(entry, preset) {
           refresh();
         } }, l)));
     };
-    fillCats(entry ? e.categoryId : e.categoryId || (type === 'income' ? 'gehalt' : ''));
+    fillCats(entry ? e.categoryId : e.categoryId || (type === 'income' ? 'sonstige-einnahme' : ''));
     fillPayers(e.payer);
     payer.addEventListener('change', refresh);
     date.addEventListener('change', refresh);
-    cat.addEventListener('change', () => (catTouched = true));
+    cat.addEventListener('change', () => {
+      catTouched = true;
+      if (type === 'income' && !splitTouched) noSplit.checked = cat.value === 'gehalt';
+    });
 
     quick.replaceChildren(...presets().map((p) => el('button', { type: 'button', class: 'chip', onclick: () => {
       title.value = p.title;
@@ -144,7 +154,7 @@ export function openEntrySheet(entry, preset) {
         time: isPlanned ? '' : time.value || '',
         payer: payer.value,
         categoryId: type === 'settlement' ? 'ausgleich' : cat.value,
-        noSplit: type === 'expense' && noSplit.checked,
+        noSplit: type !== 'settlement' && noSplit.checked,
         planned: isPlanned,
         note: note.value.trim()
       });
