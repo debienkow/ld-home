@@ -64,8 +64,31 @@ function tagField(initial) {
 
 export const recentDocs = (n) => [...state.dms.docs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, n);
 
-function openPageView(img, n) {
-  openSheet(`Seite ${n}`, (body) => body.append(el('img', { src: img, class: 'page-full', alt: `Seite ${n}` })));
+function openPageView(imgs, start) {
+  let i = start;
+  openSheet(`Seite ${i + 1} von ${imgs.length}`, (body) => {
+    const sheet = body.closest('.sheet');
+    sheet.classList.add('viewer');
+    const head = sheet.querySelector('.sheet-head h2');
+    const img = el('img', { alt: '' });
+    const prev = el('button', { class: 'viewer-nav prev', type: 'button', 'aria-label': 'Vorherige Seite', onclick: () => go(-1) }, '‹');
+    const next = el('button', { class: 'viewer-nav next', type: 'button', 'aria-label': 'Nächste Seite', onclick: () => go(1) }, '›');
+    const show = () => { img.src = imgs[i]; img.alt = `Seite ${i + 1}`; head.textContent = `Seite ${i + 1} von ${imgs.length}`; prev.disabled = i === 0; next.disabled = i === imgs.length - 1; };
+    const go = (d) => { const j = i + d; if (j < 0 || j >= imgs.length) return; i = j; show(); };
+    const stage = el('div', { class: 'viewer-stage' }, img, prev, next);
+    let x0 = null, y0 = 0;
+    stage.addEventListener('touchstart', (e) => { if (e.touches.length === 1) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } else x0 = null; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+    });
+    const key = (e) => { if (!stage.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); };
+    document.addEventListener('keydown', key);
+    body.append(stage);
+    show();
+  });
 }
 
 /* Live-Kamera: mehrere Seiten hintereinander */
@@ -147,7 +170,7 @@ function openDocView(doc) {
       pages = p;
       status.textContent = '';
       strip.replaceChildren(...pages.map((x, i) => el('div', { class: 'page-thumb' },
-        el('img', { src: x.img, alt: `Seite ${i + 1}`, onclick: () => openPageView(x.img, i + 1) }))));
+        el('img', { src: x.img, alt: `Seite ${i + 1}`, onclick: () => openPageView(pages.map((y) => y.img), i) }))));
     }).catch(() => (status.textContent = 'Seiten konnten nicht geladen werden (offline?). Bitte später erneut öffnen.'));
   });
 }
@@ -192,7 +215,7 @@ export function openDocSheet(doc, edit = false, preset = null) {
 
     const drawStrip = () => {
       strip.replaceChildren(...pages.map((p, i) => el('div', { class: 'page-thumb' },
-        el('img', { src: p.img, alt: `Seite ${i + 1}`, onclick: () => openPageView(p.img, i + 1) }),
+        el('img', { src: p.img, alt: `Seite ${i + 1}`, onclick: () => openPageView(pages.map((y) => y.img), i) }),
         el('button', { class: 'page-del', type: 'button', 'aria-label': 'Seite entfernen', onclick: () => {
           if (p.id) removed.push(p.id);
           pages.splice(i, 1); drawStrip();

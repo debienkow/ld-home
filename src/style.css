@@ -41,7 +41,7 @@ h3 { font-size: 1rem; }
 .ico svg { width: 100%; height: 100%; display: block; }
 
 /* Formulare */
-input, select, textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); min-height: 48px; }
+input, select, textarea { font-size: 16px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); min-height: 48px; }
 textarea { resize: vertical; min-height: 76px; line-height: 1.4; }
 input::placeholder, textarea::placeholder { color: #6f82ad; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: 0; border-color: transparent; }
@@ -456,3 +456,14 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .seg.small .seg-btn { min-height: 32px; padding: 4px 12px; }
 .rsvp-guests { padding: 2px 8px; font-weight: 700; color: var(--muted); }
 .chips { user-select: none; -webkit-user-select: none; }
+
+/* Seitenansicht im Vollbild */
+.sheet.viewer { max-width: none; width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; background: #000; display: flex; flex-direction: column; }
+.sheet.viewer .sheet-head { background: #000; border-radius: 0; }
+.sheet.viewer .sheet-body { flex: 1; display: flex; padding: 0; min-height: 0; }
+.viewer-stage { position: relative; flex: 1; display: grid; place-items: center; overflow: hidden; touch-action: pan-y pinch-zoom; }
+.viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transition: transform .18s ease-out; }
+.viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 64px; border: 0; border-radius: 12px; background: rgba(0,0,0,.5); color: #fff; font-size: 2rem; cursor: pointer; }
+.viewer-nav.prev { left: 8px; } .viewer-nav.next { right: 8px; }
+.viewer-nav:disabled { opacity: 0; pointer-events: none; }
+@media (min-width: 700px) { .backdrop:has(.sheet.viewer) { padding: 0; } }

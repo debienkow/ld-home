@@ -31,7 +31,7 @@ export function openEntrySheet(entry, preset) {
     let catTouched = !!entry;
 
     const seg = el('div', { class: 'seg' });
-    const title = el('input', { type: 'text', value: e.title, placeholder: 'z. B. Lidl', autocomplete: 'off' });
+    const title = el('input', { type: 'text', value: e.title, placeholder: 'z. B. Lidl', autocomplete: 'off', 'data-sugg': '1' });
     const suggest = el('div', { class: 'suggest hidden' });
     const amount = el('input', { type: 'text', inputmode: 'decimal', value: e.cents ? (e.cents / 100).toFixed(2).replace('.', ',') : '', placeholder: '0,00' });
     const date = el('input', { type: 'date', value: e.date });

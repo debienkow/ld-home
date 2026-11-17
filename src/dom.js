@@ -109,6 +109,9 @@ if (touchUi) {
     if (!sheet) return;
     document.documentElement.classList.add('typing');
     const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const needs = !!t.closest('.tag-input, .place-field, .field') || t.dataset.sugg === '1' || t.getBoundingClientRect().top > vh * 0.4;
+    if (!needs) return;
     setTimeout(() => {
       if (document.activeElement !== t) return;
       const head = sheet.querySelector('.sheet-head');
