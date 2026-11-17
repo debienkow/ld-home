@@ -233,7 +233,7 @@ function renderOverview(root, view) {
       el('p', { class: 'hint' }, 'Laufende Kosten pro Monat'),
       el('p', { class: 'big-number' }, fmt(rec.total)),
       rec.total ? el('p', null, `${nameOfKey(rec.transfer.from)} überweist ${nameOfKey(rec.transfer.to)} ${fmt(rec.transfer.cents)} monatlich`) : null),
-    ...(plannedList.length ? [el('section', { class: 'card note-card' },
+    ...(plannedList.length ? [el('section', { class: 'card note-card tap', role: 'button', tabindex: '0', onclick: () => { view.sub = 'geplant'; view.q = ''; view.redraw(); } },
       el('p', { class: 'hint' }, 'Geplante Ausgaben (noch nicht eingerechnet)'),
       el('p', { class: 'big-number' }, fmt(plannedSum)),
       el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : []),

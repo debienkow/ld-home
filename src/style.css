@@ -204,3 +204,20 @@ textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--line); borde
 .card.tap { cursor: pointer; }
 .chips.small { margin: 6px 0 10px; }
 .chips.small .chip { padding: 6px 12px; font-size: 13px; }
+
+/* Kopfzeile, Begrüßung, Avatare, Ideen */
+.brand-btn { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 4px 6px 4px 0; margin: -4px 0; color: inherit; font: inherit; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.brand-btn .brand { flex: none; }
+.brand-btn:active { opacity: .7; }
+.brand-btn:focus-visible { outline: 2px solid var(--primary); border-radius: 10px; }
+.greeting { font-size: 1.5rem; margin: 4px 2px 14px; }
+h2.tap { cursor: pointer; }
+.card.tap:active { filter: brightness(1.12); }
+.avatar.mini { width: 20px; height: 20px; font-size: .7rem; }
+.rsvp { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 3px; }
+.rsvp b { font-weight: 700; }
+.who { display: inline-flex; align-items: center; gap: 10px; }
+.idea-add { display: flex; gap: 8px; margin: 4px 0 6px; }
+.idea-add .btn { flex: none; }
+.idea-hint { margin: 0 4px 12px; }
+.item.idea { margin-bottom: 0; }

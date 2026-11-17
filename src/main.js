@@ -74,8 +74,10 @@ function renderShell() {
   window.onhashchange = showTab;
   root.replaceChildren(
     el('header', { class: 'topbar' },
-      el('img', { class: 'logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: '' }),
-      el('span', { class: 'brand' }, import.meta.env.MODE === 'demo' ? 'WombiCoon (Demo)' : 'WombiCoon'), profileBtn),
+      el('button', { class: 'brand-btn', type: 'button', 'aria-label': 'Zur Startseite', onclick: () => go('home') },
+        el('img', { class: 'logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: '', draggable: 'false' }),
+        el('span', { class: 'brand' }, import.meta.env.MODE === 'demo' ? 'WombiCoon (Demo)' : 'WombiCoon')),
+      el('span', { class: 'grow' }), profileBtn),
     offline, main, nav
   );
   showTab();

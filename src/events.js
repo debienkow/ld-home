@@ -1,10 +1,11 @@
 /* Tab Events */
 import { confirmSheet, el, openSheet, keepChips, swipeDelete, uid } from './dom.js';
 import {
-  addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso, workdays
+  addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso
 } from './evlogic.js';
 import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
+import { keyAvatar } from './profile.js';
 import { placeField } from './places.js';
 import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld } from './gcal.js';
 
@@ -23,16 +24,15 @@ export function upcoming(limit) {
 
 const badges = (e) => el('span', { class: 'rsvp-badges' }, ...parts(e).map((k) => {
   const v = (e.rsvp && e.rsvp[k]) || '';
-  return el('span', { class: 'rsvp rsvp-' + (v || 'open'), title: `${nameOfKey(k)}: ${RSVP[v][1]}` }, `${nameOfKey(k).charAt(0)}${RSVP[v][0]}`);
+  return el('span', { class: 'rsvp rsvp-' + (v || 'open'), title: `${nameOfKey(k)}: ${RSVP[v][1]}` }, keyAvatar(k, 'mini'), el('b', null, RSVP[v][0]));
 }));
 
 export function eventRow(e, onclick) {
-  const days = (e.vacation || []).length ? workdays(e.start, endOf(e)) : 0;
   return el('button', { class: 'item fin-row ev-row' + (e.important ? ' important' : ''), type: 'button', onclick: onclick || (() => openEventSheet(e)) },
     circle(catOf(e.categoryId)),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${e.important ? '⭐ ' : ''}${e.title}`),
-      el('span', { class: 'hint' }, `${rangeText(e)}${e.location ? ` · ${e.location.split(',')[0]}` : ''}${days ? ` · Urlaub ${days} ${days === 1 ? 'Tag' : 'Tage'}` : ''}`)),
+      el('span', { class: 'hint' }, `${rangeText(e)}${e.location ? ` · ${e.location.split(',')[0]}` : ''}`)),
     badges(e));
 }
 
@@ -100,7 +100,7 @@ export function openEventSheet(event, preset) {
       timesRow, locField, el('label', null, 'Notiz', note),
       el('label', { class: 'toggle-row' }, el('span', null, '⭐ Wichtig'), important),
       el('h3', null, 'Wer ist eingeladen?'),
-      ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', null, nameOfKey(k)), who[k])),
+      ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', { class: 'who' }, keyAvatar(k, 'mini'), nameOfKey(k)), who[k])),
       err,
       el('div', { class: 'row between' },
         event ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
@@ -178,16 +178,9 @@ function renderUpcoming(root, view) {
     ? state.ev.events.filter((e) => endOf(e) < todayIso()).sort((a, b) => b.start.localeCompare(a.start))
     : upcoming();
   const open = upcoming().filter(needsAnswer);
-  const year = String(new Date().getFullYear());
-  const vac = Object.fromEntries(PEOPLE.map((k) => [k, state.ev.events.filter((e) => (e.vacation || []).includes(k) && e.start.slice(0, 4) <= year && endOf(e).slice(0, 4) >= year)
-    .reduce((a, e) => a + workdays(e.start < `${year}-01-01` ? `${year}-01-01` : e.start, endOf(e) > `${year}-12-31` ? `${year}-12-31` : endOf(e)), 0)]));
   const blocks = [];
   if (!view.past && open.length) {
     blocks.push(el('section', { class: 'card note-card' }, el('h2', null, `Wartet auf deine Antwort (${open.length})`), ...open.map((e) => eventRow(e))));
-  }
-  if (!view.past && PEOPLE.some((k) => vac[k])) {
-    blocks.push(el('section', { class: 'card' }, el('p', { class: 'hint' }, `Geplante Urlaubstage ${year}`),
-      el('p', null, PEOPLE.map((k) => `${nameOfKey(k)}: ${vac[k]}`).join(' · '))));
   }
   let lastMonth = '';
   for (const e of list) {
@@ -227,17 +220,19 @@ function renderCalendar(root, view) {
 function renderIdeaList(box) {
   const ideas = [...state.ev.ideas].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   box.replaceChildren(...(ideas.length ? ideas.map((i) => swipeDelete(
-    el('div', { class: 'item' },
+    el('div', { class: 'item idea' },
       el('button', { class: 'item-main', type: 'button', onclick: () => openIdeaSheet(i) }, el('span', { class: 'circle small', style: { background: 'var(--card-2)' } }, '💡'),
-        el('span', { class: 'item-name' }, i.title), i.note && el('span', { class: 'hint' }, i.note))),
+        el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, i.title), i.note ? el('span', { class: 'hint' }, i.note) : null))),
     () => removeIdea(i.id))) : [el('p', { class: 'empty' }, 'Noch keine Ideen.')]));
 }
 
 function renderIdeas(root, box) {
-  const input = el('input', { type: 'text', class: 'search', placeholder: 'Neue Idee …', onkeydown: async (ev) => {
-    if (ev.key === 'Enter' && input.value.trim()) { await saveIdea(null, { title: input.value.trim(), note: '' }); input.value = ''; }
-  } });
-  root.replaceChildren(el('p', { class: 'hint' }, 'Gemeinsame Ideenliste: Idee antippen, um sie in einen Termin umzuwandeln. Nach links wischen löscht.'), input, box);
+  const add = async () => { if (input.value.trim()) { await saveIdea(null, { title: input.value.trim(), note: '' }); input.value = ''; } };
+  const input = el('input', { type: 'text', class: 'grow', placeholder: 'Neue Idee …', enterkeyhint: 'done', onkeydown: (ev) => { if (ev.key === 'Enter') add(); } });
+  root.replaceChildren(
+    el('div', { class: 'idea-add' }, input, el('button', { class: 'btn primary', type: 'button', onclick: add }, 'Hinzufügen')),
+    el('p', { class: 'hint idea-hint' }, 'Idee antippen, um sie in einen Termin umzuwandeln. Nach links wischen löscht.'),
+    box);
   renderIdeaList(box);
 }
 

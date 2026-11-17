@@ -4,7 +4,7 @@ import { auth } from './firebase.js';
 import { confirmSheet, el, openSheet, shrinkImage } from './dom.js';
 import { exportAll } from './dataio.js';
 import { usageCard } from './usage.js';
-import { saveProfile, saveProfilePhoto, state, userName } from './store.js';
+import { saveProfile, saveProfilePhoto, state, uidOfKey, userName } from './store.js';
 
 export function avatar(uid, size = '') {
   const photo = state.profiles[uid] && state.profiles[uid].photo;
@@ -13,6 +13,8 @@ export function avatar(uid, size = '') {
     ? el('img', { class: 'avatar ' + size, src: photo, alt: name })
     : el('span', { class: 'avatar ' + size }, name.charAt(0));
 }
+
+export const keyAvatar = (key, size = '') => avatar(uidOfKey(key), size);
 
 export function openProfile() {
   const u = state.user;

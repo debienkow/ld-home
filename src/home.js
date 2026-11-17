@@ -4,6 +4,7 @@ import { state, subscribe } from './store.js';
 import { fmt, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { docRow, openDocSheet, recentDocs } from './dms.js';
+import { myKey, nameOfKey } from './store.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
 
 const soon = (title, icon, text) =>
@@ -22,8 +23,9 @@ export function mountHome(root, go) {
     const tags = Object.entries(byStore).map(([n, c]) => el('span', { class: 'tag big' }, `${n}: ${c}`));
 
     root.replaceChildren(
-      el('section', { class: 'card', onclick: () => go('einkauf') },
-        el('h2', null, '🛒 Einkauf'),
+      el('h1', { class: 'greeting' }, `Moin ${nameOfKey(myKey())} 👋`),
+      el('section', { class: 'card tap', onclick: () => go('einkauf') },
+        el('h2', null, '🛒 Einkaufsliste'),
         el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
         tags.length ? el('div', { class: 'tags' }, ...tags) : null,
         !open.length ? el('p', { class: 'hint' }, 'Nichts auf der Liste.') : null),
@@ -34,17 +36,17 @@ export function mountHome(root, go) {
           el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${new Date(x.date + 'T00:00').toLocaleDateString('de-DE')}`)),
           el('span', { class: 'amount' }, fmt(x.cents)))))] : []),
       el('section', { class: 'card' },
-        el('h2', { onclick: () => go('finanzen') }, '💶 Finanzen'),
+        el('h2', { class: 'tap', onclick: () => go('finanzen') }, '💶 Finanzen'),
         el('p', { class: 'saldo-text' }, saldoText().text),
         saldoText().cents ? el('p', { class: 'big-number' }, fmt(saldoText().cents)) : null,
         el('button', { class: 'btn primary wide', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
       el('section', { class: 'card' },
-        el('h2', { onclick: () => go('events') }, '📅 Events'),
+        el('h2', { class: 'tap', onclick: () => go('events') }, '📅 Nächste Events'),
         ...(upcoming().filter(needsAnswer).length ? [el('p', { class: 'hint' }, `${upcoming().filter(needsAnswer).length} Einladung(en) warten auf deine Antwort`)] : []),
         ...(upcoming(3).length ? upcoming(3).map((e) => eventRow(e)) : [el('p', { class: 'hint' }, 'Keine anstehenden Termine.')]),
         el('button', { class: 'btn primary wide', onclick: () => openEventSheet() }, '+ Neuer Termin')),
       el('section', { class: 'card' },
-        el('h2', { onclick: () => go('dms') }, '🗂 Dokumente'),
+        el('h2', { class: 'tap', onclick: () => go('dms') }, '🗂 Neuste Dokumente'),
         ...(recentDocs(3).length ? recentDocs(3).map(docRow) : [el('p', { class: 'hint' }, 'Noch keine Dokumente.')]),
         el('button', { class: 'btn primary wide', onclick: () => openDocSheet() }, '📷 Dokument aufnehmen'))
     );
