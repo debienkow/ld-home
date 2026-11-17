@@ -339,6 +339,11 @@ wc-pick { display: block; min-width: 0; }
 .dp-head .icon-btn { font-size: 1.6rem; line-height: 1; }
 .dp-title { text-align: center; text-transform: capitalize; }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+.dp-pad { aspect-ratio: 1; min-height: 40px; }
+.dp-type { align-items: stretch; gap: 8px; }
+.dp-type .btn { flex: none; padding: 0 22px; }
+.dp-type input { flex: 1; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.dp-head .icon-btn { min-width: 40px; }
 .dp-wd { text-align: center; font-size: .75rem; color: var(--muted); font-weight: 700; padding: 4px 0; }
 .dp-day { aspect-ratio: 1; min-height: 40px; border: 0; border-radius: 50%; background: transparent; color: var(--text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 .dp-day:hover:not(:disabled) { background: var(--card-2); }

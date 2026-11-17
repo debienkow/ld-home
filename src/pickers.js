@@ -6,46 +6,90 @@ const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 const todayIso = () => isoOf(new Date());
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
-/* Kalenderblatt */
+/* "17.11.2026", "17.11.26" oder "17112026" -> ISO, sonst "" */
+function parseDe(t) {
+  const d = String(t).replace(/\s/g, '');
+  const m = d.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/) || d.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (!m) return '';
+  let [, dd, mm, yy] = m.map(Number);
+  if (yy < 100) yy += yy > 50 ? 1900 : 2000;
+  const x = new Date(yy, mm - 1, dd);
+  return x.getFullYear() === yy && x.getMonth() === mm - 1 && x.getDate() === dd ? isoOf(x) : '';
+}
+const deOf = (iso) => (iso ? iso.split('-').reverse().join('.') : '');
+
+/* Kalenderblatt mit Direkteingabe */
 function dateSheet(field) {
   const min = field.min;
   const max = field.max;
-  const base = new Date((field.value || (min && min > todayIso() ? min : todayIso())) + 'T00:00');
+  const allowed = (iso) => !(min && iso < min) && !(max && iso > max);
+  let pick = field.value;
+  const base = new Date((pick || (min && min > todayIso() ? min : todayIso())) + 'T00:00');
   let y = base.getFullYear();
   let m = base.getMonth();
   openSheet('Datum wählen', (body, close) => {
     const grid = el('div', { class: 'dp-grid' });
     const label = el('strong', { class: 'grow dp-title' });
+    const msg = el('p', { class: 'form-info bad' });
+    const typed = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'TT.MM.JJJJ', autocomplete: 'off', value: deOf(pick), 'aria-label': 'Datum eintippen' });
     const draw = () => {
       label.textContent = new Date(y, m, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
       const first = (new Date(y, m, 1).getDay() + 6) % 7;
       const days = new Date(y, m + 1, 0).getDate();
       const cells = WD.map((w) => el('span', { class: 'dp-wd' }, w));
-      for (let i = 0; i < first; i++) cells.push(el('span'));
-      for (let d = 1; d <= days; d++) {
+      for (let i = 0; i < 42; i++) {
+        const d = i - first + 1;
+        if (d < 1 || d > days) { cells.push(el('span', { class: 'dp-pad' })); continue; }
         const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
-        const off = !!((min && iso < min) || (max && iso > max));
         cells.push(el('button', {
           type: 'button',
-          class: 'dp-day' + (iso === field.value ? ' sel' : '') + (iso === todayIso() ? ' today' : ''),
-          disabled: off,
+          class: 'dp-day' + (iso === pick ? ' sel' : '') + (iso === todayIso() ? ' today' : ''),
+          disabled: !allowed(iso),
           onclick: () => { field.set(iso); close(); }
         }, String(d)));
       }
       grid.replaceChildren(...cells);
     };
-    const step = (n) => { m += n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } draw(); };
+    const step = (n) => { const x = new Date(y, m + n, 1); y = x.getFullYear(); m = x.getMonth(); draw(); };
+    const fromTyped = () => {
+      const iso = parseDe(typed.value);
+      if (!iso) return '';
+      pick = iso; y = +iso.slice(0, 4); m = +iso.slice(5, 7) - 1; draw();
+      return iso;
+    };
+    const apply = () => {
+      const iso = fromTyped();
+      if (!iso) return (msg.textContent = 'Bitte als TT.MM.JJJJ eingeben, z. B. 03.05.2020.');
+      if (!allowed(iso)) return (msg.textContent = `Das Datum muss ${min && iso < min ? `ab ${deOf(min)}` : `bis ${deOf(max)}`} liegen.`);
+      field.set(iso); close();
+    };
+    typed.addEventListener('input', () => {
+      const digits = typed.value.replace(/\D/g, '').slice(0, 8);
+      const dots = [...typed.value].map((c, i) => (c === '.' ? i : -1)).filter((i) => i >= 0);
+      if (/^[\d.]*$/.test(typed.value) && dots.every((i) => i === 2 || i === 5)) {
+        const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean);
+        typed.value = parts.join('.');
+      }
+      msg.textContent = '';
+      fromTyped();
+    });
+    let fresh = false;
+    typed.addEventListener('focus', () => { typed.select(); fresh = true; });
+    typed.addEventListener('mouseup', (e) => { if (fresh) e.preventDefault(); fresh = false; });
+    typed.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); apply(); } });
     const t = todayIso();
-    const canToday = !(min && t < min) && !(max && t > max);
+    const nav = (txt, lab, n) => el('button', { class: 'icon-btn', type: 'button', 'aria-label': lab, onclick: () => step(n) }, txt);
     body.append(
+      el('div', { class: 'row dp-type' }, typed, el('button', { class: 'btn soft', type: 'button', onclick: apply }, 'OK')),
+      msg,
       el('div', { class: 'row dp-head' },
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Vorheriger Monat', onclick: () => step(-1) }, '‹'),
+        nav('«', 'Ein Jahr zurück', -12), nav('‹', 'Vorheriger Monat', -1),
         label,
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Nächster Monat', onclick: () => step(1) }, '›')),
+        nav('›', 'Nächster Monat', 1), nav('»', 'Ein Jahr vor', 12)),
       grid,
       el('div', { class: 'row between actions' },
         el('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Abbrechen'),
-        canToday ? el('button', { class: 'btn soft', type: 'button', onclick: () => { field.set(t); close(); } }, 'Heute') : el('span')));
+        allowed(t) ? el('button', { class: 'btn soft', type: 'button', onclick: () => { field.set(t); close(); } }, 'Heute') : el('span')));
     draw();
   });
 }
