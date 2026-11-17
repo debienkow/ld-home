@@ -18,6 +18,6 @@ export function seed() {
   return {
     items, catalog: {}, profiles: {}, fin_entries: fin, fin_recurring: rec, config: { finance: { salaries: { logi: 219373, dudi: 237298 } } },
     events, event_ideas: { a1: { title: 'Wochenende an der Ostsee', note: '', createdAt: Date.now() } },
-    dms_docs: { m1: { title: 'Mietvertrag', categoryId: 'vertrag', tags: ['miete'], date: iso(-100), note: '', text: 'Mietvertrag Beispiel', pageCount: 1, bytes: 180000, createdAt: Date.now() } }, dms_pages: {}
+    dms_docs: { m1: { title: 'Mietvertrag', categoryId: 'vertrag', tags: ['miete'], date: iso(-100), note: '', text: 'Mietvertrag Beispiel', pageCount: 1, bytes: 180000, createdAt: Date.now() }, m2: { title: 'Hausratversicherung Police', categoryId: 'versicherung', tags: ['miete', 'versicherung', 'wohnung hamburg altona', 'jährliche zahlung'], date: '2024-03-12', note: '', text: '', pageCount: 2, bytes: 240000, createdAt: Date.now() - 1000 } }, dms_pages: {}
   };
 }

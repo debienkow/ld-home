@@ -100,6 +100,20 @@ function openCamera(onShot, onDone) {
 let camStop = () => {};
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') camStop(); });
 
+/* Alle Dokumente mit einem Stichwort, wie eine eigene Seite */
+function openTagDocs(tag) {
+  openSheet(`# ${tag}`, (body) => {
+    const draw = () => {
+      const docs = state.dms.docs.filter((d) => (d.tags || []).some((t) => t.toLowerCase() === tag.toLowerCase()))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      body.replaceChildren(
+        el('p', { class: 'hint' }, docs.length === 1 ? '1 Dokument' : `${docs.length} Dokumente`),
+        el('div', { class: 'card-list' }, ...docs.map(docRow)));
+    };
+    draw();
+  });
+}
+
 /* Dokument ansehen (nur lesen) */
 function openDocView(doc) {
   openSheet(doc.title, (body, close) => {
@@ -108,7 +122,7 @@ function openDocView(doc) {
     const strip = el('div', { class: 'page-strip big' });
     const status = el('p', { class: 'hint' }, 'Seiten werden geladen …');
     const info = (label, value) => (value ? el('div', { class: 'info-row' }, el('span', { class: 'hint' }, label), el('span', null, value)) : null);
-    const tags = (doc.tags || []).length ? el('div', { class: 'tags' }, ...doc.tags.map((t) => el('span', { class: 'tag' }, t))) : null;
+    const tags = (doc.tags || []).length ? el('div', { class: 'tags' }, ...doc.tags.map((t) => el('button', { type: 'button', class: 'tag tag-link', onclick: () => openTagDocs(t) }, `# ${t}`))) : null;
     const text = (doc.text || '').trim();
     body.append(
       strip, status,
