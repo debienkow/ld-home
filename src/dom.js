@@ -1,6 +1,7 @@
 /* Kleine DOM-Helfer */
 export function el(tag, attrs, ...kids) {
-  const node = document.createElement(tag);
+  const pick = tag === 'input' && attrs && (attrs.type === 'date' || attrs.type === 'time') && customElements.get('wc-pick');
+  const node = document.createElement(pick ? 'wc-pick' : tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') node.className = v;

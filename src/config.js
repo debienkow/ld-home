@@ -10,5 +10,5 @@ export const firebaseConfig = {
 
 export const USERS = {
   In3JXPoEyMPJz2BmUdZBNLJOqHK2: { key: 'dudi', name: 'Dudi' },
-  ImUdo4fdrESRrZ1P1roaebCpqC03: { key: 'logi', name: 'Logi' }
+  ImUdo4fdrESRrZ1P1roaebCpqC03: { key: 'logi', name: 'Logimann' }
 };

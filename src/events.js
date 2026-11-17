@@ -27,8 +27,8 @@ const badges = (e) => el('span', { class: 'rsvp-badges' }, ...parts(e).map((k) =
   return el('span', { class: 'rsvp rsvp-' + (v || 'open'), title: `${nameOfKey(k)}: ${RSVP[v][1]}` }, keyAvatar(k, 'mini'), el('b', null, RSVP[v][0]));
 }));
 
-export function eventRow(e, onclick) {
-  return el('button', { class: 'item fin-row ev-row' + (e.important ? ' important' : ''), type: 'button', onclick: onclick || (() => openEventSheet(e)) },
+export function eventRow(e, onclick, plain) {
+  return el('button', { class: 'item fin-row ev-row' + (e.important && !plain ? ' important' : ''), type: 'button', onclick: onclick || (() => openEventSheet(e)) },
     circle(catOf(e.categoryId)),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${e.important ? '⭐ ' : ''}${e.title}`),
@@ -61,14 +61,23 @@ export function openEventSheet(event, preset) {
       timesRow.classList.toggle('hidden', allDay.checked);
       timeHint.classList.toggle('hidden', allDay.checked || !!startTime.value);
     };
+    const addHour = (t) => { const [h, m] = t.split(':').map(Number); return h >= 23 ? '23:59' : `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`; };
+    const sameDay = () => !end.value || end.value === start.value;
+    const fixTimes = () => {
+      endTime.min = sameDay() && startTime.value ? startTime.value : '';
+      if (sameDay() && startTime.value && endTime.value && endTime.value < startTime.value) endTime.value = addHour(startTime.value);
+    };
     [allDay, start, end, startTime].forEach((i) => i.addEventListener('change', refresh));
-    start.addEventListener('change', () => { end.min = start.value; if (!end.value || end.value < start.value) end.value = start.value; });
+    start.addEventListener('change', () => { end.min = start.value; if (!end.value || end.value < start.value) end.value = start.value; fixTimes(); });
+    end.addEventListener('change', () => { if (end.value < start.value) end.value = start.value; fixTimes(); });
+    startTime.addEventListener('change', fixTimes);
+    fixTimes();
     refresh();
 
     const rsvpRow = event && parts(e).includes(me)
       ? el('div', { class: 'seg' }, ...[['yes', 'Zusagen'], ['maybe', 'Vielleicht'], ['no', 'Absagen']].map(([k, l]) =>
         el('button', { type: 'button', class: 'seg-btn' + (myRsvp(e) === k ? ' active' : ''), onclick: async () => {
-          await saveEvent(event.id, { rsvp: { [me]: k } });
+          await saveEvent(event.id, { rsvp: { [me]: myRsvp(e) === k ? '' : k } });
           close();
         } }, l)))
       : null;
@@ -76,11 +85,14 @@ export function openEventSheet(event, preset) {
     const save = async () => {
       if (!title.value.trim()) return (err.textContent = 'Bitte einen Titel eingeben.');
       if (!start.value) return (err.textContent = 'Bitte ein Startdatum wählen.');
-      const endDate = end.value && end.value >= start.value ? end.value : start.value;
+      if (end.value && end.value < start.value) return (err.textContent = 'Das Ende darf nicht vor dem Beginn liegen.');
+      const endDate = end.value || start.value;
+      if (!allDay.checked && endDate === start.value && startTime.value && endTime.value && endTime.value < startTime.value) {
+        return (err.textContent = 'Die Endzeit darf nicht vor der Startzeit liegen.');
+      }
       const participants = PEOPLE.filter((k) => who[k].checked);
       const rsvp = { ...(e.rsvp || {}) };
       for (const k of PEOPLE) if (!participants.includes(k)) delete rsvp[k];
-      if (!event && participants.includes(me)) rsvp[me] = 'yes';
       const whole = allDay.checked || !startTime.value;
       const payload = {
         title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: whole,
@@ -95,7 +107,7 @@ export function openEventSheet(event, preset) {
     };
 
     body.append(
-      ...(rsvpRow ? [el('p', { class: 'hint' }, 'Meine Antwort'), rsvpRow] : []),
+      ...(rsvpRow ? [el('p', { class: 'hint' }, 'Meine Antwort (nochmal tippen zum Zurücksetzen)'), rsvpRow] : []),
       ...(e.gser ? [el('p', { class: 'hint note-line' }, 'Serientermin aus dem Google Kalender: Titel, Zeit und Ort bitte dort ändern. Kategorie, Antwort und „Wichtig“ gelten nur hier.')] : []),
       el('label', null, 'Titel', title),
       el('label', null, 'Kategorie', cat),

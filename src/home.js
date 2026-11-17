@@ -27,7 +27,9 @@ export function mountHome(root, go) {
     const due = state.fin.entries.filter((x) => x.planned && x.date <= todayStr());
     const saldo = saldoText();
     const pending = upcoming().filter(needsAnswer);
-    const next = upcoming().filter((e) => !pending.includes(e)).slice(0, 3);
+    const rest = upcoming().filter((e) => !pending.includes(e));
+    const sub = (t) => el('h3', { class: 'section-title card-sub' }, t);
+    const rows = (list) => el('div', { class: 'card-list' }, ...list.map((e) => eventRow(e, null, true)));
     const docs = recentDocs(3);
 
     root.replaceChildren(
@@ -54,11 +56,9 @@ export function mountHome(root, go) {
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
         el('section', { class: 'card' },
           head('events', 'Nächste Events', go),
-          ...(pending.length ? [
-            el('h3', { class: 'section-title card-sub' }, `Ausstehende Einladungen (${pending.length})`),
-            el('div', { class: 'card-list' }, ...pending.map((e) => eventRow(e))),
-            el('h3', { class: 'section-title card-sub' }, 'Demnächst')] : []),
-          el('div', { class: 'card-list' }, ...(next.length ? next.map((e) => eventRow(e)) : [el('p', { class: 'hint' }, pending.length ? 'Sonst keine anstehenden Termine.' : 'Keine anstehenden Termine.')])),
+          ...(pending.length ? [sub(`Ausstehende Einladungen (${pending.length})`), rows(pending)] : []),
+          ...(rest.length ? [sub('Nächstes Event'), rows(rest.slice(0, 1))] : [el('p', { class: 'hint card-sub' }, pending.length ? 'Sonst keine anstehenden Termine.' : 'Keine anstehenden Termine.')]),
+          ...(rest.length > 1 ? [sub('Demnächst'), rows(rest.slice(1, 4))] : []),
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEventSheet() }, '+ Neuer Termin')),
         el('section', { class: 'card' },
           head('dms', 'Neueste Dokumente', go),

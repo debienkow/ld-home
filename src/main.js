@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
 import { USERS } from './config.js';
 import { el, icon } from './dom.js';
+import './pickers.js';
 import { renderLogin } from './login.js';
 import { startStore, state, stopStore, subscribe } from './store.js';
 import { avatar, openProfile } from './profile.js';

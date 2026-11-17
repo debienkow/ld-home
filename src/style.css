@@ -329,3 +329,24 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.8); cursor: p
   .greeting { font-size: 1.8rem; }
   .content.tab-home .grid, .content.wide .grid { gap: 16px; }
 }
+
+/* Datum/Uhrzeit-Auswahl */
+wc-pick { display: block; min-width: 0; }
+.pick-btn { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); color: var(--text); text-align: left; font: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.pick-btn.empty { color: #6f82ad; }
+.pick-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; border-color: transparent; }
+.dp-head { align-items: center; margin-bottom: 6px; }
+.dp-head .icon-btn { font-size: 1.6rem; line-height: 1; }
+.dp-title { text-align: center; text-transform: capitalize; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+.dp-wd { text-align: center; font-size: .75rem; color: var(--muted); font-weight: 700; padding: 4px 0; }
+.dp-day { aspect-ratio: 1; min-height: 40px; border: 0; border-radius: 50%; background: transparent; color: var(--text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.dp-day:hover:not(:disabled) { background: var(--card-2); }
+.dp-day.today { box-shadow: inset 0 0 0 1.5px var(--primary); }
+.dp-day.sel { background: var(--primary-fill); color: var(--primary-text); font-weight: 700; }
+.dp-day:disabled { color: #4a5c85; cursor: default; }
+.tp-show { text-align: center; font-size: 2.4rem; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; margin: 0 0 4px; }
+.tp-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.tp-cell { min-height: 42px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.tp-cell.sel { background: var(--primary-fill); border-color: var(--primary-fill); color: var(--primary-text); font-weight: 700; }
+.tp-cell:disabled { opacity: .35; cursor: default; }

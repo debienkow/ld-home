@@ -1,5 +1,5 @@
 /* WombiCoon service worker v3 */
-const CACHE = 'wombicoon-v3';
+const CACHE = 'wombicoon-v4';
 
 self.addEventListener('install', () => self.skipWaiting());
 
