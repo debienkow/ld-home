@@ -312,8 +312,6 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.8); cursor: p
   .sheet-head::before { display: none; }
   .sheet-body > .actions { border-radius: 0 0 24px 24px; }
   .toasts { left: auto; right: 24px; bottom: 104px; width: 400px; justify-items: end; }
-  .doc-list > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
-  .doc-list .empty { grid-column: 1 / -1; }
 }
 @keyframes pop { from { transform: scale(.96); opacity: 0; } }
 
