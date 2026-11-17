@@ -1,5 +1,6 @@
 /* Google-Kalender-Sync über ein Apps-Script (Web-App im Google-Konto) */
 import { endOf, addDays, todayIso } from './evlogic.js';
+import { toast } from './dom.js';
 import { removeEvent, replaceEvConfigField, saveEvConfig, saveEvent, state } from './store.js';
 
 export const gcalConfig = () => state.ev.config.gcal || null;
@@ -19,7 +20,11 @@ async function call(action, payload = {}) {
     return data;
   } finally { clearTimeout(timer); }
 }
-export const gcalPing = () => call('ping');
+export const gcalPing = async () => { const r = await call('ping'); info.calendar = r.calendar || ''; info.version = r.version || ''; return r; };
+
+/* Stand des letzten Abgleichs für die Einstellungen */
+export const info = { at: 0, ok: null, error: '', changes: 0, calendar: '', version: '' };
+let warned = false;
 
 const toG = (e) => ({ gid: e.gid || '', title: e.title, allDay: e.allDay !== false, start: e.start, end: endOf(e), startTime: e.startTime || '', endTime: e.endTime || '', location: e.location || '', note: e.note || '' });
 const sameFields = (e, g) => e.title === g.title && e.start === g.start && endOf(e) === g.end && (e.allDay !== false) === g.allDay && (e.startTime || '') === g.startTime && (e.endTime || '') === g.endTime && (e.location || '') === g.location && (e.note || '') === g.note;
@@ -72,12 +77,21 @@ export async function deleteEvent(event) {
   }
 }
 
-const FRESH = 10 * 60 * 1000;
-let running = false;
+const FRESH = 3 * 60 * 1000;
+let running = null;
 /* Google -> App und fehlende Termine hochladen */
-export async function syncNow(opts = {}) {
-  if (!gcalReady() || running || !state.user || !navigator.onLine) return { ok: false };
-  running = true;
+export function syncNow(opts = {}) {
+  if (!gcalReady() || !state.user || !navigator.onLine) return Promise.resolve({ ok: false, error: navigator.onLine ? 'nicht verbunden' : 'offline' });
+  if (running) return running;
+  running = runSync(opts).then((r) => {
+    Object.assign(info, { at: Date.now(), ok: r.ok, error: r.error || '', changes: r.changes || 0 });
+    if (!r.ok && !opts.manual && !warned) { warned = true; toast(`Google-Abgleich fehlgeschlagen: ${r.error || 'unbekannt'}`, { bad: true }); }
+    if (r.ok) warned = false;
+    return r;
+  }).finally(() => { running = null; });
+  return running;
+}
+async function runSync(opts) {
   try {
     const from = addDays(todayIso(), -30), to = addDays(todayIso(), 400);
     const res = await call('list', { from, to });
@@ -118,7 +132,7 @@ export async function syncNow(opts = {}) {
     return { ok: true, changes, skipped };
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
-  } finally { running = false; }
+  }
 }
 
 /* Einmalig: alte Termine (vor dem Abgleichfenster) aus allen eigenen Kalendern des Kontos holen */

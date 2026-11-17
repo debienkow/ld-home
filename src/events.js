@@ -7,7 +7,7 @@ import { myKey, nameOfKey, removeEvent, removeIdea, restoreIdea, saveEvConfig, s
 import { PEOPLE } from './finlogic.js';
 import { keyAvatar } from './profile.js';
 import { placeField } from './places.js';
-import { deleteEvent, gcalReady, gcalPing, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
+import { deleteEvent, info as gInfo, gcalReady, gcalPing, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -161,25 +161,30 @@ function openEvSettings() {
     const g = gcalConfig() || {};
     const url = el('input', { type: 'text', value: g.url || '', placeholder: 'https://script.google.com/macros/s/…/exec', autocomplete: 'off' });
     const token = el('input', { type: 'password', value: g.token || '', placeholder: 'Geheimwort aus dem Skript', autocomplete: 'off' });
-    const gmsg = el('p', { class: 'hint' }, gcalReady() ? 'Verbunden. Der Abgleich läuft beim Öffnen und alle 5 Minuten.' : 'Noch nicht verbunden.');
+    const clock = (t) => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const lastText = () => gInfo.at ? `Letzter Abgleich ${clock(gInfo.at)} Uhr: ${gInfo.ok ? `ok (${gInfo.changes} Änderungen)` : `fehlgeschlagen (${gInfo.error})`}.` : 'Noch kein Abgleich in dieser Sitzung.';
+    const gmsg = el('p', { class: 'hint' }, gcalReady() ? `Verbunden. ${lastText()}` : 'Noch nicht verbunden.');
+    const calLine = el('p', { class: 'hint' }, 'Neue Termine landen im Kalender, den das Skript verwaltet (ab Skript v1.4: „WombiCoon App“). Abgleich: sofort beim Speichern/Löschen in der App; Änderungen aus Google beim Öffnen, beim Zurückkehren in die App und alle 5 Minuten.');
+    const showCal = () => { if (gInfo.calendar) calLine.firstChild.textContent = `Neue Termine landen im Google-Kalender „${gInfo.calendar}“${gInfo.version ? ` (Skript v${gInfo.version})` : ' (Skript älter als v1.4, bitte aktualisieren)'}. Abgleich: sofort beim Speichern/Löschen in der App; Änderungen aus Google beim Öffnen, beim Zurückkehren in die App und alle 5 Minuten.`; };
+    if (gcalReady()) gcalPing().then(showCal).catch(() => {});
     const saveG = async () => {
       if (!validGcalUrl(url.value)) { gmsg.textContent = 'Die Adresse muss mit https://script.google.com/macros/s/ beginnen und auf /exec enden.'; throw Object.assign(new Error('url'), { reported: true }); }
       await saveGcalConfig({ url: url.value.trim(), token: token.value.trim() });
     };
     body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', type: 'button', onclick: async () => { await saveEvConfig({ categories: list.filter((c) => c.name.trim()) }); close(); } }, 'Kategorien speichern')),
       el('h3', null, 'Google Kalender'),
-      el('p', { class: 'hint' }, 'Verbindet eure Termine mit dem Google-Kalender „LD Home“. Einrichtung: siehe Anleitung im Projektordner.'),
+      calLine,
       el('label', null, 'Web-App-URL', url), el('label', null, 'Geheimwort', token), gmsg,
       el('div', { class: 'row wrap' },
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           await saveG(); gmsg.textContent = 'Teste …';
-          try { await new Promise((r) => setTimeout(r, 600)); await gcalPing(); gmsg.textContent = 'Verbindung funktioniert.'; } catch (e) { gmsg.textContent = 'Verbindung fehlgeschlagen: URL und Geheimwort prüfen.'; }
+          try { await new Promise((r) => setTimeout(r, 600)); await gcalPing(); showCal(); gmsg.textContent = 'Verbindung funktioniert.'; } catch (e) { gmsg.textContent = 'Verbindung fehlgeschlagen: URL und Geheimwort prüfen.'; }
         } }, 'Verbindung testen'),
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           await saveG(); gmsg.textContent = 'Gleiche ab …';
           await new Promise((r) => setTimeout(r, 600));
-          let r = await syncNow();
-          if (r.ok && r.skipped && await confirmSheet('Termine entfernen?', `${r.skipped} Termine gibt es im Google Kalender nicht mehr. Zur Sicherheit wurden sie hier nicht gelöscht. Jetzt auch hier löschen?`, 'Löschen')) r = await syncNow({ force: true });
+          let r = await syncNow({ manual: true });
+          if (r.ok && r.skipped && await confirmSheet('Termine entfernen?', `${r.skipped} Termine gibt es im Google Kalender nicht mehr. Zur Sicherheit wurden sie hier nicht gelöscht. Jetzt auch hier löschen?`, 'Löschen')) r = await syncNow({ force: true, manual: true });
           gmsg.textContent = r.ok ? `Abgleich fertig (${r.changes} Änderungen${r.skipped ? `, ${r.skipped} fehlende Termine behalten` : ''}).` : `Abgleich fehlgeschlagen: ${r.error || 'bitte später nochmal versuchen'}`;
         } }, 'Jetzt abgleichen'),
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
