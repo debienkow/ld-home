@@ -281,7 +281,7 @@ export function openCompanyEdit(c0) {
 
 /* Übersicht aller Unternehmen */
 export function openCompanyList() {
-  openSheet('Unternehmen', (body) => {
+  openSheet('Vertragsdaten', (body) => {
     const draw = () => {
       const list = [...companies()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
       body.replaceChildren(

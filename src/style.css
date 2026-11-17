@@ -404,3 +404,8 @@ wc-pick { display: block; min-width: 0; }
 .row.kv input { flex: 1; min-width: 0; }
 .danger-text { color: var(--danger); }
 .edit-list { display: grid; gap: 8px; }
+.contract-tile { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; color: var(--text); font: inherit; cursor: pointer; padding: 16px; }
+.contract-tile .circle { background: var(--primary-soft); width: 46px; height: 46px; font-size: 1.4rem; }
+.contract-tile .item-name { font-size: 1.1rem; font-weight: 700; }
+.contract-tile .more { color: var(--muted); font-size: 1.4rem; }
+.contract-tile .hint { white-space: normal; overflow: visible; text-overflow: clip; }

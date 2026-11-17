@@ -4,7 +4,7 @@ import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages,
 import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
 import { todayIso } from './evlogic.js';
-import { companyById, companyCard, companyField, findCompanies, openCompany, openCompanyList } from './companies.js';
+import { companies, companyById, companyCard, companyField, deadlineOf, findCompanies, openCompany, openCompanyList } from './companies.js';
 
 const cats = () => state.dms.config.categories || DEFAULT_DMS_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -310,7 +310,6 @@ export function mountDms(root) {
     chips.replaceChildren(
       el('button', { class: 'chip' + (!view.cat ? ' active' : ''), onclick: () => { view.cat = ''; drawChips(); drawList(); } }, 'Alle'),
       ...cats().map((c) => el('button', { class: 'chip' + (view.cat === c.id ? ' active' : ''), onclick: () => { view.cat = c.id; drawChips(); drawList(); } }, `${c.icon} ${c.name}`)),
-      el('button', { class: 'chip', type: 'button', onclick: openCompanyList }, '🏢 Unternehmen'),
       view.tag
         ? el('button', { class: 'chip active', type: 'button', onclick: () => { view.tag = ''; drawChips(); drawList(); } }, `# ${view.tag} ×`)
         : el('button', { class: 'chip', type: 'button', onclick: openTagIndex }, '# Stichworte'),
@@ -342,7 +341,20 @@ export function mountDms(root) {
     });
   }
   const usage = el('div');
-  root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, el('div', { class: 'doc-list' }, list), usage, fab);
-  drawChips(); drawList();
-  return subscribe(() => { drawChips(); drawList(); });
+  const tile = el('button', { class: 'card tap contract-tile', type: 'button', onclick: openCompanyList });
+  function drawTile() {
+    const cos = companies();
+    const next = cos.flatMap((c) => (c.contracts || []).map((k) => ({ c, d: deadlineOf(k) }))).filter((x) => x.d && !x.d.past).sort((a, b) => a.d.days - b.d.days)[0];
+    tile.replaceChildren(
+      el('span', { class: 'circle' }, '🏢'),
+      el('span', { class: 'grow fin-main' },
+        el('span', { class: 'item-name' }, 'Vertragsdaten'),
+        el('span', { class: 'hint' }, cos.length
+          ? `${cos.length} Unternehmen${next ? ` · nächste Kündigungsfrist: ${next.c.name} bis ${new Date(next.d.deadline + 'T00:00').toLocaleDateString('de-DE')}` : ''}`
+          : 'Kundendaten, Verträge und Kündigungsfristen anlegen')),
+      el('span', { class: 'more' }, '›'));
+  }
+  root.replaceChildren(tile, el('div', { class: 'search-wrap' }, search), chips, el('div', { class: 'doc-list' }, list), usage, fab);
+  drawTile(); drawChips(); drawList();
+  return subscribe(() => { drawTile(); drawChips(); drawList(); });
 }
