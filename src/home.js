@@ -4,7 +4,8 @@ import { myKey, nameOfKey, state, subscribe } from './store.js';
 import { fmt, isDue, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { docRow, openDocSheet, recentDocs } from './dms.js';
-import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
+import { eventRow, isVac, needsAnswer, openEventSheet, upcoming } from './events.js';
+import { addDays } from './evlogic.js';
 import { contractTitle, dueSoon, openCompany } from './companies.js';
 
 const dateDe = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE');
@@ -29,7 +30,8 @@ export function mountHome(root, go) {
     const saldo = saldoText();
     const notice = dueSoon();
     const pending = upcoming().filter(needsAnswer);
-    const rest = upcoming().filter((e) => !pending.includes(e));
+    const rest = upcoming().filter((e) => !pending.includes(e) && !isVac(e));
+    const vacs = upcoming().filter((e) => isVac(e) && addDays(e.start, -7) <= todayStr());
     const sub = (t) => el('h3', { class: 'section-title card-sub' }, t);
     const rows = (list) => el('div', { class: 'card-list' }, ...list.map((e) => eventRow(e, null, true)));
     const docs = recentDocs(3);
@@ -76,6 +78,7 @@ export function mountHome(root, go) {
           ...(pending.length ? [sub(`Ausstehende Einladungen (${pending.length})`), rows(pending)] : []),
           ...(rest.length ? [sub('Nächstes Event'), rows(rest.slice(0, 1))] : [el('p', { class: 'hint card-sub' }, pending.length ? 'Sonst keine anstehenden Termine.' : 'Keine anstehenden Termine.')]),
           ...(rest.length > 1 ? [sub('Demnächst'), rows(rest.slice(1, 4))] : []),
+          ...(vacs.length ? [sub('Urlaube'), rows(vacs)] : []),
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEventSheet() }, '+ Neuer Termin')),
         el('section', { class: 'card' },
           head('dms', 'Neueste Dokumente', go),

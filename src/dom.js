@@ -145,6 +145,10 @@ export function openSheet(title, buildContent, onClose) {
     if (before && before.isConnected && before.focus) { try { before.focus({ preventScroll: true }); } catch (x) { /* ignorieren */ } }
   };
   const body = el('div', { class: 'sheet-body' });
+  const clean = (k) => k.filter((x) => x !== null && x !== undefined && x !== false);
+  const app = body.append.bind(body), rep = body.replaceChildren.bind(body);
+  body.append = (...k) => app(...clean(k));
+  body.replaceChildren = (...k) => rep(...clean(k));
   const sheet = el(
     'div',
     { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, tabindex: '-1' },
@@ -304,3 +308,33 @@ document.addEventListener('wheel', (e) => {
   row.scrollLeft += e.deltaY;
   e.preventDefault();
 }, { passive: false });
+
+/* Chip-Eingabe: Komma/Enter macht Chips, Vorschläge aus suggest(q) */
+export function chipInput({ values = [], suggest = () => [], placeholder = '', onChange = () => {} }) {
+  let list = [...values];
+  const box = el('span', { class: 'tag-list' });
+  const input = el('input', { type: 'text', placeholder, autocomplete: 'off', enterkeyhint: 'done' });
+  const wrap = el('div', { class: 'tag-input' }, box, input);
+  const sugg = el('div', { class: 'chips small tag-sugg' });
+  const has = (t) => list.some((x) => x.toLowerCase() === t.toLowerCase());
+  const add = (raw) => { for (const t of String(raw).split(',').map((x) => x.trim()).filter(Boolean)) if (!has(t)) list.push(t); };
+  const draw = (changed) => {
+    box.replaceChildren(...list.map((t, i) => el('span', { class: 'tag-chip' }, t,
+      el('button', { type: 'button', 'aria-label': `${t} entfernen`, onmousedown: (e) => e.preventDefault(), onclick: () => { list.splice(i, 1); draw(true); } }, '×'))));
+    const q = input.value.trim().toLowerCase();
+    const hits = suggest(q).filter((t) => !has(t) && (!q || t.toLowerCase().includes(q))).slice(0, 8);
+    sugg.replaceChildren(...hits.map((t) => el('button', { type: 'button', class: 'chip', onmousedown: (e) => e.preventDefault(), onclick: () => { add(t); input.value = ''; draw(true); } }, t)));
+    if (changed) onChange([...list]);
+  };
+  input.addEventListener('input', () => {
+    if (input.value.includes(',')) { const parts = input.value.split(','); input.value = parts.pop().replace(/^\s+/, ''); add(parts.join(',')); draw(true); } else draw(false);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (input.value.trim()) { add(input.value); input.value = ''; draw(true); } }
+    else if (e.key === 'Backspace' && !input.value && list.length) { list.pop(); draw(true); }
+  });
+  input.addEventListener('blur', () => { if (input.value.trim()) { add(input.value); input.value = ''; draw(true); } });
+  wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target === box) input.focus(); });
+  draw(false);
+  return { node: el('div', { class: 'field' }, wrap, sugg), values: () => { if (input.value.trim()) { add(input.value); input.value = ''; } return [...list]; } };
+}

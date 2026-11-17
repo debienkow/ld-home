@@ -12,6 +12,8 @@ export function seed() {
   const rec = { r1: { title: 'Miete', payer: 'logi', intervalMonths: 1, weight: { mode: 'salary', logiOffsetPercent: -1.8125 }, versions: [{ from: '2024-01', cents: 120000 }], sort: 0 }, r2: { title: 'Strom', payer: 'dudi', intervalMonths: 1, weight: { mode: 'equal' }, versions: [{ from: '2024-01', cents: 8500 }], sort: 1 } };
   const events = {
     v1: { title: 'Konzert', categoryId: 'kultur', start: iso(7), end: iso(7), allDay: false, startTime: '19:30', endTime: '22:00', location: 'Barclays Arena, Hamburg', lat: 53.5875, lon: 9.9, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes' }, vacation: [], important: true, createdAt: Date.now() },
+    v4: { title: 'Arbeitsurlaub Dudi', categoryId: 'arbeitsurlaub', who: 'dudi', start: iso(3), end: iso(16), allDay: true, participants: [], rsvp: {}, createdAt: Date.now() },
+    v5: { title: 'Grillen bei Anna', categoryId: 'treffen', start: iso(5), end: iso(5), allDay: false, startTime: '18:00', endTime: '22:00', participants: ['dudi', 'logi'], rsvp: { dudi: 'yes', logi: 'yes' }, guests: ['Anna', 'Tim'], grsvp: { Anna: 'yes', Tim: '' }, createdAt: Date.now() },
     v2: { title: 'Urlaub Ostsee', categoryId: 'urlaub', start: iso(40), end: iso(46), allDay: true, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes', logi: 'maybe' }, vacation: ['dudi', 'logi'], important: false, createdAt: Date.now() },
     v3: { title: 'Hochzeit Anna & Tim', categoryId: 'feier', start: iso(220), end: iso(220), allDay: true, participants: ['dudi', 'logi'], rsvp: { logi: 'yes' }, vacation: [], important: false, createdAt: Date.now() }
   };

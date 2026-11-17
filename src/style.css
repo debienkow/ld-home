@@ -252,7 +252,7 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.8); cursor: p
 .idea-who { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: .72rem; font-weight: 700; color: var(--muted); padding: 4px 0; }
-.cal-cell { display: grid; justify-items: center; align-content: center; gap: 3px; aspect-ratio: 1; padding: 0; border: 0; border-radius: 12px; background: none; font-variant-numeric: tabular-nums; }
+.cal-cell { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 2px 0 3px; border: 0; border-radius: 12px; background: none; font-variant-numeric: tabular-nums; min-height: 46px; }
 .cal-cell > span:first-child { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; }
 .cal-cell.has-ev { background: var(--card-2); font-weight: 700; }
 .cal-cell.today > span:first-child { background: var(--primary-fill); color: #fff; font-weight: 700; }
@@ -440,3 +440,19 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: 0; background: none; color: var(--muted); opacity: .6; display: grid; place-items: center; cursor: pointer; }
 .pw-eye:hover { opacity: 1; }
 .chips.dragging { cursor: grabbing; user-select: none; }
+
+/* Kalender: Wochen mit durchgehenden Balken */
+.cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); column-gap: 4px; row-gap: 2px; margin-bottom: 4px; }
+.cal-cell.has-ev { background: var(--card-2); }
+.cal-cell.holiday .cal-num { color: var(--warn); font-weight: 700; }
+.cal-cell.today.holiday .cal-num { color: #fff; }
+.cal-bar { position: relative; z-index: 1; align-self: stretch; min-width: 0; border: 0; border-radius: 6px; margin: 0 2px; padding: 0 5px; color: #0a1530; font-size: .66rem; font-weight: 700; line-height: 17px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.cal-bar.open-l { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -2px; }
+.cal-bar.open-r { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -2px; }
+.holiday-row .circle { font-size: 1rem; }
+.guest-rsvp { display: grid; gap: 6px; margin-top: 6px; }
+.guest-row { align-items: center; }
+.guest-av { background: var(--card-2); color: var(--muted); width: 24px; height: 24px; font-size: .75rem; }
+.seg.small .seg-btn { min-height: 32px; padding: 4px 12px; }
+.rsvp-guests { padding: 2px 8px; font-weight: 700; color: var(--muted); }
+.chips { user-select: none; -webkit-user-select: none; }

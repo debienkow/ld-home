@@ -135,8 +135,8 @@ function openDocView(doc) {
         info('Datum', doc.date ? dateText(doc.date) : ''),
         info('Seiten', String(doc.pageCount || '')),
         info('Notiz', doc.note || '')),
-      tags,
-      text ? el('details', { class: 'ocr-view' }, el('summary', null, 'Erkannter Text'), el('p', null, text)) : null,
+      ...(tags ? [tags] : []),
+      ...(text ? [el('details', { class: 'ocr-view' }, el('summary', null, 'Erkannter Text'), el('p', null, text))] : []),
       el('div', { class: 'row between actions' },
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           if (!pages.length) return;
