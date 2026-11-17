@@ -3,11 +3,15 @@ import { confirmSheet, el, openSheet, toast, uid } from './dom.js';
 import { saveDms, saveDmsConfig, saveEvent, state, subscribe } from './store.js';
 import { addDays, todayIso } from './evlogic.js';
 import { deleteEvent, pushEvent } from './gcal.js';
-import { docRow, docCatOf } from './dms.js';
+import { docRow, docCatOf, openDocSheet } from './dms.js';
 
-export const companies = () => (Array.isArray(state.dms.config.companies) ? state.dms.config.companies : []);
+const allCompanies = () => (Array.isArray(state.dms.config.companies) ? state.dms.config.companies : []);
+const meUid = () => (state.user ? state.user.uid : '');
+export const companies = () => allCompanies().filter((c) => !c.owner || c.owner === meUid());
 export const companyById = (id) => companies().find((c) => c.id === id) || null;
-const saveCompanies = (list) => saveDmsConfig({ companies: list });
+/* Speichert die sichtbare Liste; private Unternehmen der anderen Person bleiben erhalten */
+const saveCompanies = (list) => saveDmsConfig({ companies: [...allCompanies().filter((c) => c.owner && c.owner !== meUid()), ...list] });
+const remindOn = (k) => k.remindOn !== false;
 const dateDe = (iso) => (iso ? new Date(iso + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
 const UNITS = { d: ['Tag', 'Tage'], w: ['Woche', 'Wochen'], m: ['Monat', 'Monate'] };
 const unitText = (n, u) => `${n} ${UNITS[u || 'm'][n === 1 ? 0 : 1]}`;
@@ -53,7 +57,7 @@ export function dueSoon() {
   const out = [];
   for (const c of current()) for (const k of c.contracts || []) {
     const d = deadlineOf(k);
-    if (d && !d.past && d.days <= (k.remind ?? 30)) out.push({ c, k, ...d });
+    if (d && !d.past && remindOn(k) && d.days <= (k.remind ?? 30)) out.push({ c, k, ...d });
   }
   return out.sort((a, b) => a.deadline.localeCompare(b.deadline));
 }
@@ -70,11 +74,11 @@ async function syncDeadlines() {
   const want = new Map();
   for (const c of current()) for (const k of c.contracts || []) {
     const d = deadlineOf(k);
-    if (!d || d.past) continue;
+    if (!d || d.past || !remindOn(k)) continue;
     want.set(`kf_${c.id}_${k.id}`, {
       title: `Kündigungsfrist: ${contractTitle(c, k)}`, categoryId: 'termin', start: d.deadline, end: d.deadline, allDay: true, startTime: '', endTime: '',
       location: '', note: `Letzter Tag zum Kündigen (${unitText(k.notice, k.unit)} vor Vertragsende ${dateDe(d.end)}). Automatisch aus DMS › Unternehmen.`,
-      important: true, participants: [], vacation: [], rsvp: {}, kind: 'deadline', src: `${c.id}:${k.id}`
+      important: true, participants: [], vacation: [], rsvp: {}, kind: 'deadline', src: `${c.id}:${k.id}`, owner: c.owner || ''
     });
   }
   for (const e of state.ev.events) {
@@ -82,7 +86,7 @@ async function syncDeadlines() {
   }
   for (const [id, p] of want) {
     const cur = state.ev.events.find((e) => e.id === id);
-    if (cur && cur.start === p.start && cur.title === p.title && cur.note === p.note) continue;
+    if (cur && cur.start === p.start && cur.title === p.title && cur.note === p.note && (cur.owner || '') === p.owner) continue;
     const payload = cur ? p : { ...p, createdBy: state.user.uid, createdAt: Date.now() };
     await saveEvent(id, payload);
     pushEvent(id, { ...(cur || {}), ...payload });
@@ -125,13 +129,13 @@ export function companyField(currentId, onChange = () => {}) {
   return {
     node: wrap,
     /* Liefert die Id; legt ein neues Unternehmen bei Bedarf an */
-    async value() {
+    async value(priv) {
       if (sel) return sel.id;
       const name = pendingName || input.value.trim();
       if (!name) return '';
       const hit = companies().find((c) => c.name.toLowerCase() === name.toLowerCase());
       if (hit) return hit.id;
-      const c = { id: 'c' + uid(), name, aliases: [], fields: [], contracts: [], note: '' };
+      const c = { id: 'c' + uid(), name, aliases: [], fields: [], contracts: [], note: '', owner: priv ? meUid() : '' };
       await saveCompanies([...companies(), c]);
       return c.id;
     }
@@ -146,7 +150,7 @@ export function companyCard(c) {
     el('span', { class: 'circle' }, '🏢'),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, c.name),
-      el('span', { class: 'hint' }, [c.archived ? 'Archiviert' : 'Kundendaten', c.customerNo ? `Kd.-Nr. ${c.customerNo}` : '', c.phone || '', due ? deadlineLine(due) : ''].filter(Boolean).join(' · ')),
+      el('span', { class: 'hint' }, [c.archived ? 'Archiviert' : c.owner ? '🔒 Kundendaten' : 'Kundendaten', c.customerNo ? `Kd.-Nr. ${c.customerNo}` : '', c.phone || '', due ? deadlineLine(due) : ''].filter(Boolean).join(' · ')),
       missing ? el('span', { class: 'warn-text' }, '⚠️ Kein aktiver Vertrag hinterlegt') : null),
     el('span', { class: 'more' }, '›'));
 }
@@ -198,6 +202,9 @@ function openLinkDoc(c, k) {
   });
 }
 
+/* Vorbelegung für ein neues Vertragsdokument */
+const docPreset = (c, k) => ({ companyId: c.id, contractId: k.id, categoryId: 'vertrag', title: `${c.name}${k.name ? ` ${k.name}` : ''}`, private: !!c.owner });
+
 /* Ansicht eines Unternehmens */
 export function openCompany(c0) {
   const open = new Set();
@@ -212,20 +219,23 @@ export function openCompany(c0) {
       body.replaceChildren(
         ...(c.archived ? [el('p', { class: 'hint note-line' }, 'Archiviert: keine Verträge mehr mit diesem Unternehmen.')] : []),
         ...(!c.archived && !hasActive(c) ? [el('p', { class: 'note-line warn-line' }, '⚠️ Kein aktiver Vertrag hinterlegt. Bitte Vertrag nachtragen oder das Unternehmen archivieren.')] : []),
-        el('h3', { class: 'section-title' }, 'Kundendaten'),
-        el('div', { class: 'info-list' },
-          line('Kundennummer', c.customerNo),
-          line('Telefon', c.phone, c.phone ? `tel:${c.phone.replace(/[^\d+]/g, '')}` : ''),
-          line('E-Mail', c.email, c.email ? `mailto:${c.email}` : ''),
-          line('Website / Portal', c.web, c.web ? webHref(c.web) : ''),
-          line('Login (Benutzername)', c.login),
-          line('Adresse', c.address),
-          ...(c.fields || []).map((f) => line(f.label, f.value))),
+        ...(c.owner ? [el('p', { class: 'hint note-line' }, '🔒 Privat: nur für dich sichtbar.')] : []),
+        ...(c.customerNo || c.login || (c.fields || []).length ? [el('h3', { class: 'section-title' }, 'Kundendaten'),
+          el('div', { class: 'info-list' },
+            line('Kundennummer', c.customerNo),
+            line('Login (Benutzername)', c.login),
+            ...(c.fields || []).map((f) => line(f.label, f.value)))] : []),
+        ...(c.phone || c.email || c.web || c.address ? [el('h3', { class: 'section-title' }, 'Vertragspartner'),
+          el('div', { class: 'info-list' },
+            line('Telefon', c.phone, c.phone ? `tel:${c.phone.replace(/[^\d+]/g, '')}` : ''),
+            line('E-Mail', c.email, c.email ? `mailto:${c.email}` : ''),
+            line('Website / Portal', c.web, c.web ? webHref(c.web) : ''),
+            line('Adresse', c.address))] : []),
         ...((c.contracts || []).length ? [el('h3', { class: 'section-title' }, 'Verträge'), ...[...c.contracts].sort((a, b) => isActive(b) - isActive(a) || (b.start || '').localeCompare(a.start || '')).map((k) => {
           const d = deadlineOf(k);
           const active = isActive(k);
           const kd = docs.filter((x) => x.contractId === k.id);
-          return el('div', { class: 'card contract' + (d && !d.past && d.days <= (k.remind ?? 30) ? ' warn' : '') + (active ? '' : ' ended') },
+          return el('div', { class: 'card contract' + (d && !d.past && remindOn(k) && d.days <= (k.remind ?? 30) ? ' warn' : '') + (active ? '' : ' ended') },
             el('div', { class: 'row between' }, el('strong', null, k.name || 'Vertrag'), el('span', { class: 'tag' + (active ? '' : ' muted') }, active ? (k.cancelled ? 'gekündigt' : 'aktiv') : 'beendet')),
             el('div', { class: 'info-list' },
               line('Vertragsnummer', k.number),
@@ -234,9 +244,11 @@ export function openCompany(c0) {
               line('Kündigungsfrist', k.notice && !k.cancelled ? `${unitText(k.notice, k.unit)} zum Laufzeitende` : '', '', false),
               line('Verlängerung', k.cancelled ? '' : k.renew ? `automatisch um ${unitText(k.renew, 'm')}` : k.end ? 'keine' : '', '', false),
               line('Betrag', k.amount, '', false)),
-            d && active ? el('p', { class: d.past ? 'hint' : 'deadline' }, deadlineLine(d)) : !active && k.end ? el('p', { class: 'hint' }, `Ausgelaufen am ${dateDe(k.end)}`) : k.cancelled && k.end ? el('p', { class: 'hint' }, `Gekündigt zum ${dateDe(k.end)}`) : null,
+            d && active ? el('p', { class: d.past || !remindOn(k) ? 'hint' : 'deadline' }, `${deadlineLine(d)}${remindOn(k) ? ' · Erinnerung an' : ''}`) : !active && k.end ? el('p', { class: 'hint' }, `Ausgelaufen am ${dateDe(k.end)}`) : k.cancelled && k.end ? el('p', { class: 'hint' }, `Gekündigt zum ${dateDe(k.end)}`) : null,
             docGroup(kd, 'k:' + k.id, open, draw),
-            el('button', { class: 'link-btn', type: 'button', onclick: () => openLinkDoc(c, k) }, '+ Dokument verknüpfen'));
+            el('div', { class: 'row wrap' },
+              el('button', { class: 'link-btn', type: 'button', onclick: () => openDocSheet(null, false, docPreset(c, k)) }, '📷 Dokument aufnehmen'),
+              el('button', { class: 'link-btn', type: 'button', onclick: () => openLinkDoc(c, k) }, '+ Vorhandenes verknüpfen')));
         })] : []),
         ...(c.note ? [el('h3', { class: 'section-title' }, 'Notiz'), el('p', { class: 'pre' }, c.note)] : []),
         ...(loose.length ? [el('h3', { class: 'section-title' }, (c.contracts || []).length ? 'Weitere Dokumente' : 'Dokumente'),
@@ -265,6 +277,7 @@ export function openCompanyEdit(c0) {
     const note = el('textarea', { rows: '3', placeholder: 'z. B. Ansprechpartner, Tarif, Besonderheiten' }, c.note || '');
     const err = el('p', { class: 'form-info bad' });
     const archived = el('input', { type: 'checkbox', checked: !!c.archived });
+    const priv = el('input', { type: 'checkbox', checked: !!c.owner });
 
     const fieldsBox = el('div', { class: 'edit-list' });
     const drawFields = () => fieldsBox.replaceChildren(...c.fields.map((f, i) => el('div', { class: 'row kv' },
@@ -289,27 +302,32 @@ export function openCompanyEdit(c0) {
           el('label', { class: 'grow' }, 'Verlängert sich um (Monate, 0 = nein)', el('input', { type: 'number', min: '0', inputmode: 'numeric', value: k.renew || '', placeholder: 'z. B. 12', oninput: set('renew', true) })),
           el('label', { class: 'grow' }, 'Erinnern (Tage vorher)', el('input', { type: 'number', min: '0', inputmode: 'numeric', value: k.remind ?? 30, oninput: set('remind', true) }))),
         el('label', null, 'Betrag (optional)', el('input', { type: 'text', value: k.amount || '', placeholder: 'z. B. 39,90 € / Monat', oninput: set('amount') })),
+        el('label', { class: 'toggle-row' }, el('span', null, '🔔 An Kündigungsfrist erinnern (Termin + Hinweis)'), el('input', { type: 'checkbox', checked: remindOn(k), onchange: (e) => (k.remindOn = e.target.checked) })),
         el('label', { class: 'toggle-row' }, el('span', null, 'Gekündigt (läuft zum Laufzeitende aus)'), el('input', { type: 'checkbox', checked: !!k.cancelled, onchange: (e) => (k.cancelled = e.target.checked) })),
-        el('button', { class: 'btn ghost danger-text', type: 'button', onclick: () => { c.contracts.splice(i, 1); drawK(); } }, 'Vertrag entfernen'));
+        el('div', { class: 'row wrap' },
+          el('button', { class: 'btn ghost', type: 'button', onclick: async () => { if (await save(true)) openDocSheet(null, false, docPreset(c, k)); } }, '📷 Vertragsdokument aufnehmen'),
+          el('button', { class: 'btn ghost danger-text', type: 'button', onclick: () => { c.contracts.splice(i, 1); drawK(); } }, 'Vertrag entfernen')));
     }));
 
-    const save = async () => {
+    const save = async (stay) => {
       c.name = name.value.trim();
-      if (!c.name) return (err.textContent = 'Bitte einen Namen eingeben.');
+      if (!c.name) { err.textContent = 'Bitte einen Namen eingeben.'; return false; }
       const others = companies().filter((x) => x.id !== c.id);
-      if (others.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) return (err.textContent = 'Ein Unternehmen mit diesem Namen gibt es schon.');
+      if (others.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) { err.textContent = 'Ein Unternehmen mit diesem Namen gibt es schon.'; return false; }
       Object.assign(c, {
         aliases: aliases.value.split(',').map((x) => x.trim()).filter(Boolean),
         customerNo: customerNo.value.trim(), phone: phone.value.trim(), email: email.value.trim(), web: web.value.trim(), login: login.value.trim(),
-        address: address.value.trim(), note: note.value.trim(), archived: archived.checked,
+        address: address.value.trim(), note: note.value.trim(), archived: archived.checked, owner: priv.checked ? meUid() : '',
         fields: c.fields.map((f) => ({ label: f.label.trim(), value: f.value.trim() })).filter((f) => f.label || f.value),
         contracts: c.contracts.map((k) => ({ ...k, name: (k.name || '').trim(), notice: k.notice || 0, renew: k.renew || 0, remind: k.remind ?? 30 }))
       });
       const bad = c.contracts.find((k) => k.start && k.end && k.end < k.start);
-      if (bad) return (err.textContent = 'Bei einem Vertrag liegt das Laufzeitende vor dem Beginn.');
+      if (bad) { err.textContent = 'Bei einem Vertrag liegt das Laufzeitende vor dem Beginn.'; return false; }
       const list = companies().some((x) => x.id === c.id) ? companies().map((x) => (x.id === c.id ? c : x)) : [...companies(), c];
       await saveCompanies(list);
-      close();
+      err.textContent = '';
+      if (!stay) close();
+      return true;
     };
 
     body.append(
@@ -317,18 +335,20 @@ export function openCompanyEdit(c0) {
       el('label', null, 'Weitere Namen für die Suche (mit Komma)', aliases),
       el('h3', null, 'Kundendaten'),
       el('label', null, 'Kundennummer', customerNo),
+      el('label', null, 'Login (nur Benutzername, kein Passwort)', login),
+      el('p', { class: 'hint' }, 'Weitere Angaben (z. B. Zählernummer, Tarif, Ansprechpartner)'),
+      fieldsBox,
+      el('button', { class: 'btn ghost', type: 'button', onclick: () => { c.fields.push({ label: '', value: '' }); drawFields(); } }, '+ Angabe'),
+      el('h3', null, 'Vertragspartner'),
       el('label', null, 'Telefon (Hotline)', phone),
       el('label', null, 'E-Mail', email),
       el('label', null, 'Website / Kundenportal', web),
-      el('label', null, 'Login (nur Benutzername, kein Passwort)', login),
       el('label', null, 'Adresse', address),
-      el('p', { class: 'hint' }, 'Weitere Angaben (z. B. Zählernummer, IBAN-Hinweis, Ansprechpartner)'),
-      fieldsBox,
-      el('button', { class: 'btn ghost', type: 'button', onclick: () => { c.fields.push({ label: '', value: '' }); drawFields(); } }, '+ Angabe'),
       el('h3', null, 'Verträge'),
       kBox,
-      el('button', { class: 'btn ghost', type: 'button', onclick: () => { c.contracts.push({ id: 'k' + uid(), name: '', unit: 'm', remind: 30 }); drawK(); } }, '+ Vertrag'),
+      el('button', { class: 'btn ghost', type: 'button', onclick: () => { c.contracts.push({ id: 'k' + uid(), name: '', unit: 'm', remind: 30, remindOn: false }); drawK(); } }, '+ Vertrag'),
       el('label', null, 'Notiz', note),
+      el('label', { class: 'toggle-row' }, el('span', null, '🔒 Privat (nur für mich sichtbar)'), priv),
       el('label', { class: 'toggle-row' }, el('span', null, 'Archiviert (keine Verträge mehr)'), archived),
       err,
       el('div', { class: 'row between actions' },
@@ -338,7 +358,7 @@ export function openCompanyEdit(c0) {
           await saveCompanies(companies().filter((x) => x.id !== c0.id));
           close();
         } }, 'Löschen') : el('span'),
-        el('button', { class: 'btn primary', type: 'button', onclick: save }, 'Speichern')));
+        el('button', { class: 'btn primary', type: 'button', onclick: () => save(false) }, 'Speichern')));
     drawFields(); drawK();
   });
 }

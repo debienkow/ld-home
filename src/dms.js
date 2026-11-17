@@ -130,6 +130,7 @@ function openDocView(doc) {
       strip, status,
       el('div', { class: 'info-list' },
         ...(companyById(doc.companyId) ? [el('button', { type: 'button', class: 'info-row link-row', onclick: () => openCompany(companyById(doc.companyId)) }, el('span', { class: 'hint' }, 'Unternehmen'), el('span', null, `🏢 ${companyById(doc.companyId).name}${((companyById(doc.companyId).contracts || []).find((k) => k.id === doc.contractId) || {}).name ? ` · ${companyById(doc.companyId).contracts.find((k) => k.id === doc.contractId).name}` : ''} ›`))] : []),
+        doc.owner ? info('Sichtbarkeit', '🔒 Privat (nur für dich)') : null,
         info('Kategorie', `${c.icon} ${c.name}`),
         info('Datum', doc.date ? dateText(doc.date) : ''),
         info('Seiten', String(doc.pageCount || '')),
@@ -152,21 +153,24 @@ function openDocView(doc) {
 }
 
 /* Dokument anlegen oder bearbeiten */
-export function openDocSheet(doc, edit = false) {
+export function openDocSheet(doc, edit = false, preset = null) {
   if (doc && !edit) return openDocView(doc);
+  const pre = preset || {};
+  const initC = doc ? doc.companyId : pre.companyId || '';
+  const initK = doc ? doc.contractId : pre.contractId || '';
   openSheet(doc ? `${doc.title} bearbeiten` : 'Neues Dokument', (body, close) => {
     let pages = []; // { id?, img, isNew }
     const removed = [];
     let ocrText = doc ? doc.text || '' : '';
-    let touchedTitle = !!doc;
+    let touchedTitle = !!doc || !!pre.title;
     let busy = false;
 
     const strip = el('div', { class: 'page-strip' });
     const status = el('p', { class: 'hint' });
     const err = el('p', { class: 'form-info bad' });
-    const title = el('input', { type: 'text', value: doc ? doc.title : '', placeholder: 'z. B. Mietvertrag' });
+    const title = el('input', { type: 'text', value: doc ? doc.title : pre.title || '', placeholder: 'z. B. Mietvertrag' });
     title.addEventListener('input', () => (touchedTitle = true));
-    const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: doc && c.id === doc.categoryId }, `${c.icon} ${c.name}`)));
+    const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: c.id === (doc ? doc.categoryId : pre.categoryId) }, `${c.icon} ${c.name}`)));
     const tags = tagField(doc ? doc.tags : []);
     const contract = el('select');
     const contractBox = el('label', null, 'Vertrag (optional)', contract);
@@ -174,11 +178,12 @@ export function openDocSheet(doc, edit = false) {
       const co = companyById(cid);
       const ks = co ? co.contracts || [] : [];
       contractBox.classList.toggle('hidden', !ks.length);
-      const cur = contract.value || (doc && doc.companyId === cid ? doc.contractId : '');
+      const cur = contract.value || (initC === cid ? initK : '');
       contract.replaceChildren(el('option', { value: '' }, 'Kein bestimmter Vertrag'), ...ks.map((k) => el('option', { value: k.id, selected: k.id === cur }, `${k.name || 'Vertrag'}${(k.start || k.end) && !/\d{4}/.test(k.name || '') ? ` (${[k.start, k.end].filter(Boolean).map((x) => x.slice(0, 4)).join('–')})` : ''}`)));
     };
-    const company = companyField(doc ? doc.companyId : '', (cid) => { contract.value = ''; fillContracts(cid); });
-    fillContracts(doc ? doc.companyId : '');
+    const priv = el('input', { type: 'checkbox', checked: doc ? !!doc.owner : !!pre.private });
+    const company = companyField(initC, (cid) => { contract.value = ''; fillContracts(cid); const co = companyById(cid); if (co && co.owner && !doc) priv.checked = true; });
+    fillContracts(initC);
     const date = el('input', { type: 'date', value: doc ? doc.date : todayIso() });
     const note = el('input', { type: 'text', value: doc ? doc.note || '' : '', placeholder: 'Notiz (optional)' });
     let loading = !!doc;
@@ -243,7 +248,8 @@ export function openDocSheet(doc, edit = false) {
       const fresh = pages.filter((p) => p.isNew).map((p) => ({ idx: ++idx, img: p.img }));
       try {
         await saveDms(doc && doc.id, {
-          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), ...(await (async () => { const cid = await company.value(); const ok = (companyById(cid) || { contracts: [] }).contracts.some((k) => k.id === contract.value); return { companyId: cid, contractId: ok ? contract.value : '' }; })()), date: date.value || todayIso(),
+          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), ...(await (async () => { const cid = await company.value(priv.checked); const ok = (companyById(cid) || { contracts: [] }).contracts.some((k) => k.id === contract.value); return { companyId: cid, contractId: ok ? contract.value : '' }; })()), date: date.value || todayIso(),
+          owner: priv.checked ? state.user.uid : '',
           note: note.value.trim(), text: text.value.slice(0, 400000), pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
@@ -260,6 +266,7 @@ export function openDocSheet(doc, edit = false) {
       el('button', { class: 'link-btn', type: 'button', onclick: () => camera.click() }, 'Einzelfoto mit Kamera-App'),
       camera, gallery, strip, status,
       el('label', null, 'Titel', title), el('label', null, 'Kategorie', cat),
+      el('label', { class: 'toggle-row' }, el('span', null, '🔒 Privates Dokument (nur für mich sichtbar)'), priv),
       el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Unternehmen'), company.node),
       contractBox,
       el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Stichworte'), tags.node), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
@@ -306,7 +313,7 @@ export function docRow(d) {
   return el('button', { class: 'item fin-row', type: 'button', onclick: () => openDocSheet(d) },
     d.thumb ? el('img', { class: 'doc-thumb', src: d.thumb, alt: '' }) : el('span', { class: 'circle', style: { background: cat.color } }, cat.icon),
     el('span', { class: 'grow fin-main' },
-      el('span', { class: 'item-name' }, d.title),
+      el('span', { class: 'item-name' }, `${d.owner ? '🔒 ' : ''}${d.title}`),
       el('span', { class: 'hint' }, `${companyById(d.companyId) ? `🏢 ${companyById(d.companyId).name} · ` : ''}${cat.icon} ${cat.name} · ${dateText(d.date)}${d.pageCount > 1 ? ` · ${d.pageCount} Seiten` : ''}${(d.tags || []).length ? ` · ${d.tags.join(', ')}` : ''}`)));
 }
 

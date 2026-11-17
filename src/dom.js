@@ -40,7 +40,7 @@ const ICONS = {
   events: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8.5 3v4M15.5 3v4"/>',
   dms: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2.5h5.5A2.5 2.5 0 0 1 20 10v6.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/>',
   einkauf: '<path d="M3 4h2.2l2.3 10.5h9.6L19.5 8H6.4"/><circle cx="9" cy="18.5" r="1.4"/><circle cx="16" cy="18.5" r="1.4"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+  gear: '<path d="M14.8 5.2a4.5 4.5 0 0 0-5.9 5.6L3.8 15.9a1.9 1.9 0 0 0 2.7 2.7l5.1-5.1a4.5 4.5 0 0 0 5.6-5.9l-2.7 2.7-2.3-.4-.4-2.3z"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   undo: '<path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
@@ -93,6 +93,22 @@ if (window.visualViewport) {
   const setKb = () => document.documentElement.style.setProperty('--kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
   vv.addEventListener('resize', setKb);
   vv.addEventListener('scroll', setKb);
+}
+
+/* Handy: Eingabefeld beim Tippen nach oben holen, damit Vorschläge darunter sichtbar bleiben */
+const touchUi = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+const typable = (t) => t && ((t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|range)$/.test(t.type)) || t.tagName === 'TEXTAREA');
+if (touchUi) {
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (!typable(t)) return;
+    const sheet = t.closest('.sheet');
+    if (!sheet) return;
+    document.documentElement.classList.add('typing');
+    const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
+    setTimeout(() => { if (document.activeElement === t) anchor.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 320);
+  });
+  document.addEventListener('focusout', () => setTimeout(() => { if (!typable(document.activeElement)) document.documentElement.classList.remove('typing'); }, 150));
 }
 
 export function openSheet(title, buildContent, onClose) {

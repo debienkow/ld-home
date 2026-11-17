@@ -3,9 +3,9 @@ import { confirmSheet, el, icon, openSheet, keepChips, swipeDelete, toast, uid }
 import {
   addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso
 } from './evlogic.js';
-import { myKey, nameOfKey, removeEvent, removeIdea, restoreIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
+import { myKey, nameOfKey, userName, removeEvent, removeIdea, restoreIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
-import { keyAvatar } from './profile.js';
+import { avatar, keyAvatar } from './profile.js';
 import { placeField } from './places.js';
 import { deleteEvent, info as gInfo, gcalReady, gcalPing, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
 
@@ -227,20 +227,34 @@ function renderCalendar(root, view) {
   for (let d = 1; d <= daysIn; d++) {
     const iso = isoOf(new Date(first.getFullYear(), first.getMonth(), d));
     const evs = state.ev.events.filter((e) => covers(e, iso));
-    cells.push(el('button', { class: 'cal-cell' + (iso === todayIso() ? ' today' : '') + (evs.length ? ' has-ev' : '') + (iso === view.day ? ' sel' : ''), onclick: () => { view.day = iso; view.redraw(); } },
+    cells.push(el('button', { class: 'cal-cell' + (iso === todayIso() ? ' today' : '') + (evs.length ? ' has-ev' : '') + (iso === view.day ? ' sel' : ''), onclick: () => { view.day = view.day === iso ? null : iso; view.redraw(); } },
       el('span', null, String(d)),
       el('span', { class: 'cal-dots' }, ...evs.slice(0, 3).map((e) => el('i', { style: { background: catOf(e.categoryId).color } })))));
   }
-  const dayEvents = state.ev.events.filter((e) => covers(e, view.day)).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-  root.replaceChildren(el('div', { class: 'cal-layout' }, el('div', { class: 'cal-box card' },
+  const mStart = isoOf(first), mEnd = isoOf(new Date(first.getFullYear(), first.getMonth(), daysIn));
+  const byTime = (a, b) => a.start.localeCompare(b.start) || (a.startTime || '').localeCompare(b.startTime || '');
+  const shown = view.day
+    ? state.ev.events.filter((e) => covers(e, view.day)).sort(byTime)
+    : state.ev.events.filter((e) => e.start <= mEnd && endOf(e) >= mStart).sort(byTime);
+  const go = (n) => { view.month = new Date(first.getFullYear(), first.getMonth() + n, 1); view.day = null; view.redraw(); };
+  const box = el('div', { class: 'cal-box card' },
     el('div', { class: 'cal-head' },
-      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Vorheriger Monat', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() - 1, 1); view.redraw(); } }, '‹'),
-      el('strong', null, monthName(first)),
-      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Nächster Monat', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() + 1, 1); view.redraw(); } }, '›')),
-    el('div', { class: 'cal-grid' }, ...['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => el('span', { class: 'cal-wd' }, w)), ...cells)),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Vorheriger Monat', onclick: () => go(-1) }, '‹'),
+      el('button', { class: 'cal-title' + (view.day ? '' : ' sel'), type: 'button', onclick: () => { view.day = null; view.redraw(); } }, monthName(first)),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Nächster Monat', onclick: () => go(1) }, '›')),
+    el('div', { class: 'cal-grid' }, ...['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => el('span', { class: 'cal-wd' }, w)), ...cells));
+  let x0 = null, y0 = 0;
+  box.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  box.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+  });
+  root.replaceChildren(el('div', { class: 'cal-layout' }, box,
     el('div', { class: 'cal-day' },
-      el('h3', { class: 'section-title month' }, el('span', null, parseIso(view.day).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
-      ...(dayEvents.length ? dayEvents.map((e) => eventRow(e)) : [el('p', { class: 'empty' }, 'Kein Termin an diesem Tag.')]))));
+      el('h3', { class: 'section-title month' }, el('span', null, view.day ? parseIso(view.day).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : `Alle Termine im ${monthName(first)}`)),
+      ...(shown.length ? shown.map((e) => eventRow(e)) : [el('p', { class: 'empty' }, view.day ? 'Kein Termin an diesem Tag.' : 'Keine Termine in diesem Monat.')]))));
 }
 
 function renderIdeaList(box) {
@@ -248,7 +262,8 @@ function renderIdeaList(box) {
   box.replaceChildren(...(ideas.length ? ideas.map((i) => swipeDelete(
     el('div', { class: 'item idea' },
       el('button', { class: 'item-main', type: 'button', onclick: () => openIdeaSheet(i) }, el('span', { class: 'circle small', style: { background: 'var(--card-2)' } }, '💡'),
-        el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, i.title), i.note ? el('span', { class: 'hint' }, i.note) : null))),
+        el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, i.title), i.note ? el('span', { class: 'hint' }, i.note) : null),
+        i.createdBy ? el('span', { class: 'who idea-who', title: `Eingetragen von ${userName(i.createdBy)}` }, avatar(i.createdBy, 'mini'), el('span', { class: 'hint' }, userName(i.createdBy))) : null)),
     () => { removeIdea(i.id); toast(`„${i.title}“ gelöscht`, { action: 'Rückgängig', onAction: () => restoreIdea(i) }); })) : [el('p', { class: 'empty' }, 'Noch keine Ideen.')]));
 }
 
@@ -263,11 +278,11 @@ function renderIdeas(root, box) {
 }
 
 export function mountEvents(root) {
-  const view = { sub: 'kommend', past: false, month: new Date(), day: todayIso(), redraw: null };
+  const view = { sub: 'kommend', past: false, month: new Date(), day: null, redraw: null };
   const subnav = el('div', { class: 'chips' });
   const content = el('div');
   const ideaList = el('div');
-  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Termin oder neue Idee', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day } : null)) }, icon('plus'));
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Termin oder neue Idee', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day || (isoOf(view.month).slice(0, 7) === todayIso().slice(0, 7) ? todayIso() : isoOf(new Date(view.month.getFullYear(), view.month.getMonth(), 1))) } : null)) }, icon('plus'));
   const SUBS = [['kommend', 'Übersicht'], ['kalender', 'Kalender'], ['ideen', 'Ideen']];
   function draw() { keepChips(drawNow); }
   function drawNow() {

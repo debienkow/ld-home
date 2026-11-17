@@ -53,7 +53,7 @@ const alive = (id) => !dead.has(id) && state.ev.events.some((x) => x.id === id);
 
 /* Nach dem Speichern eines Termins nach Google schreiben */
 export async function pushEvent(id, event) {
-  if (!gcalReady() || event.gser || dead.has(id)) return;
+  if (!gcalReady() || event.gser || event.owner || dead.has(id)) return;
   try {
     const r = await call('upsert', { event: toG(event) });
     if (dead.has(id)) { await call('delete', { gid: r.gid }).catch(() => {}); return; }
@@ -127,7 +127,7 @@ async function runSync(opts) {
     if (risky && !opts.force) skipped = gone.length;
     else for (const e of gone) { await removeEvent(e.id); changes++; }
     for (const e of state.ev.events) {
-      if (!e.gid && alive(e.id) && inRange(e) && e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
+      if (!e.gid && !e.owner && alive(e.id) && inRange(e) && e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
     }
     return { ok: true, changes, skipped };
   } catch (err) {

@@ -246,6 +246,10 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.8); cursor: p
 .cal-box.card { padding: 10px 12px 14px; margin-bottom: 4px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .cal-head .icon-btn { font-size: 1.6rem; }
+.cal-title { border: 0; background: none; color: var(--text); font: inherit; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.cal-title.sel { background: var(--primary-soft); color: var(--primary); }
+.cal-box { touch-action: pan-y; }
+.idea-who { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: .72rem; font-weight: 700; color: var(--muted); padding: 4px 0; }
 .cal-cell { display: grid; justify-items: center; align-content: center; gap: 3px; aspect-ratio: 1; padding: 0; border: 0; border-radius: 12px; background: none; font-variant-numeric: tabular-nums; }
@@ -418,3 +422,7 @@ wc-pick { display: block; min-width: 0; }
 .doc-group { margin-top: 10px; }
 .cat-group { margin-bottom: 10px; }
 .cat-group > .hint { margin: 0 2px 6px; }
+
+/* Tastatur: Platz unter dem Feld für Vorschläge */
+html.typing .sheet-body { padding-bottom: 55vh; }
+.sheet-body label, .sheet-body .field, .sheet-body .tag-input { scroll-margin-top: 12px; }

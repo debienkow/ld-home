@@ -84,6 +84,8 @@ const cleanEntries = (list) => list.filter((x) => isDate(x.date) && Number.isFin
 const cleanEvents = (list) => list.filter((x) => isDate(x.start)).map((x) => ({ ...x, title: String(x.title ?? '') || '(ohne Titel)', end: isDate(x.end) && x.end >= x.start ? x.end : x.start }));
 const cleanDocs = (list) => list.map((x) => ({ ...x, title: String(x.title ?? '') || '(ohne Titel)', date: isDate(x.date) ? x.date : new Date(x.createdAt || Date.now()).toLocaleDateString('sv-SE') }));
 const cleanItems = (list) => list.filter((x) => typeof x.name === 'string' && x.name);
+/* Private Einträge nur für den Besitzer */
+export const mine = (x) => !x.owner || (state.user && x.owner === state.user.uid);
 const listOr = (v, fallback) => (Array.isArray(v) && v.length ? v : fallback);
 
 export const norm = (s) => s.trim().toLowerCase();
@@ -177,7 +179,7 @@ export function startStore(user) {
 
   unsubs.push(
     onSnapshot(collection(db, 'events'), (snap) => {
-      state.ev.events = cleanEvents(rows(snap));
+      state.ev.events = cleanEvents(rows(snap)).filter(mine);
       state.ev.loaded = true;
       emit();
     }, snapError)
@@ -197,7 +199,7 @@ export function startStore(user) {
 
   unsubs.push(
     onSnapshot(collection(db, 'dms_docs'), (snap) => {
-      state.dms.docs = cleanDocs(rows(snap));
+      state.dms.docs = cleanDocs(rows(snap)).filter(mine);
       emit();
     }, snapError)
   );
