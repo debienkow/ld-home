@@ -40,7 +40,10 @@ const ICONS = {
   events: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8.5 3v4M15.5 3v4"/>',
   dms: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2.5h5.5A2.5 2.5 0 0 1 20 10v6.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/>',
   einkauf: '<path d="M3 4h2.2l2.3 10.5h9.6L19.5 8H6.4"/><circle cx="9" cy="18.5" r="1.4"/><circle cx="16" cy="18.5" r="1.4"/>',
-  gear: '<path d="M14.8 5.2a4.5 4.5 0 0 0-5.9 5.6L3.8 15.9a1.9 1.9 0 0 0 2.7 2.7l5.1-5.1a4.5 4.5 0 0 0 5.6-5.9l-2.7 2.7-2.3-.4-.4-2.3z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M4 4l16 16"/><path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3.2 3.9M6.2 7.6A16 16 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9 9 0 0 0 4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  wrench: '<path d="M14.8 5.2a4.5 4.5 0 0 0-5.9 5.6L3.8 15.9a1.9 1.9 0 0 0 2.7 2.7l5.1-5.1a4.5 4.5 0 0 0 5.6-5.9l-2.7 2.7-2.3-.4-.4-2.3z"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   undo: '<path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
@@ -114,6 +117,17 @@ if (touchUi) {
     }, 320);
   });
   document.addEventListener('focusout', () => setTimeout(() => { if (!typable(document.activeElement)) document.documentElement.classList.remove('typing'); }, 150));
+}
+
+/* Passwortfeld mit Auge zum Ein-/Ausblenden */
+export function pwField(input) {
+  const btn = el('button', { type: 'button', class: 'pw-eye', 'aria-label': 'Passwort anzeigen', onclick: () => {
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-label', show ? 'Passwort verbergen' : 'Passwort anzeigen');
+    btn.replaceChildren(icon(show ? 'eyeOff' : 'eye'));
+  } }, icon('eye'));
+  return el('div', { class: 'pw-wrap' }, input, btn);
 }
 
 export function openSheet(title, buildContent, onClose) {
@@ -262,3 +276,31 @@ export function keepChips(fn) {
   apply();
   requestAnimationFrame(apply);
 }
+
+/* Maus: Chip-Reihen per Ziehen und Mausrad seitlich scrollen */
+let drag = null;
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  const row = e.target.closest('.chips');
+  if (!row || row.scrollWidth <= row.clientWidth) return;
+  drag = { row, x: e.clientX, left: row.scrollLeft, moved: false };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x;
+  if (Math.abs(dx) > 5) drag.moved = true;
+  if (drag.moved) { drag.row.scrollLeft = drag.left - dx; drag.row.classList.add('dragging'); }
+});
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  d.row.classList.remove('dragging');
+  if (d.moved) document.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+});
+document.addEventListener('wheel', (e) => {
+  const row = e.target.closest && e.target.closest('.chips');
+  if (!row || row.scrollWidth <= row.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  row.scrollLeft += e.deltaY;
+  e.preventDefault();
+}, { passive: false });

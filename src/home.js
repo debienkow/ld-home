@@ -46,7 +46,7 @@ export function mountHome(root, go) {
     root.replaceChildren(
       ...(iosHint ? [iosHint] : []),
       el('div', { class: 'greet' },
-        el('h1', { class: 'greeting' }, `${greeting()}, ${nameOfKey(myKey())} 👋`),
+        el('h1', { class: 'greeting' }, myKey() === 'logi' ? `Henlon ${nameOfKey('logi')} 👋🦝` : `${greeting()}, ${nameOfKey(myKey())} 👋`),
         el('p', { class: 'hint' }, new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
       ...(notice.length ? [el('section', { class: 'card note-card warn' },
         el('h2', null, notice.length === 1 ? 'Kündigungsfrist naht' : `${notice.length} Kündigungsfristen nahen`),

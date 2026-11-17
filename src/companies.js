@@ -1,6 +1,7 @@
 /* DMS: Unternehmen mit Kundendaten, Verträgen und Kündigungsfristen */
 import { confirmSheet, el, openSheet, toast, uid } from './dom.js';
 import { saveDms, saveDmsConfig, saveEvent, state, subscribe } from './store.js';
+import { currentCents, fmt } from './finlogic.js';
 import { addDays, todayIso } from './evlogic.js';
 import { deleteEvent, pushEvent } from './gcal.js';
 import { docRow, docCatOf, openDocSheet } from './dms.js';
@@ -245,6 +246,7 @@ export function openCompany(c0) {
               line('Verlängerung', k.cancelled ? '' : k.renew ? `automatisch um ${unitText(k.renew, 'm')}` : k.end ? 'keine' : '', '', false),
               line('Betrag', k.amount, '', false)),
             d && active ? el('p', { class: d.past || !remindOn(k) ? 'hint' : 'deadline' }, `${deadlineLine(d)}${remindOn(k) ? ' · Erinnerung an' : ''}`) : !active && k.end ? el('p', { class: 'hint' }, `Ausgelaufen am ${dateDe(k.end)}`) : k.cancelled && k.end ? el('p', { class: 'hint' }, `Gekündigt zum ${dateDe(k.end)}`) : null,
+            ...state.fin.recurring.filter((r) => r.companyId === c.id && r.contractId === k.id).map((r) => el('p', { class: 'hint' }, `💶 Laufende Kosten: ${r.title} ${fmt(currentCents(r, todayIso().slice(0, 7)))}${r.intervalMonths > 1 ? ` alle ${r.intervalMonths} Monate` : ' / Monat'}`)),
             docGroup(kd, 'k:' + k.id, open, draw),
             el('div', { class: 'row wrap' },
               el('button', { class: 'link-btn', type: 'button', onclick: () => openDocSheet(null, false, docPreset(c, k)) }, '📷 Dokument aufnehmen'),

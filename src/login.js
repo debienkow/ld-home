@@ -1,7 +1,7 @@
 /* Login-Seite mit "Passwort vergessen" */
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase.js';
-import { el } from './dom.js';
+import { el, pwField } from './dom.js';
 
 const MESSAGES = {
   'auth/invalid-credential': 'E-Mail oder Passwort stimmt nicht.',
@@ -43,7 +43,7 @@ export function renderLogin(root) {
     el('h1', null, 'WombiCoon'),
     el('p', { class: 'hint' }, 'Haushalt, Einkauf, Termine und Dokumente'),
     el('label', null, 'E-Mail', email),
-    el('label', null, 'Passwort', pw),
+    el('label', null, 'Passwort', pwField(pw)),
     info,
     submit,
     el(

@@ -2,8 +2,6 @@
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
 import { confirmSheet, el, openSheet, shrinkImage, toast } from './dom.js';
-import { exportAll } from './dataio.js';
-import { usageCard } from './usage.js';
 import { saveProfile, saveProfilePhoto, state, uidOfKey, userName } from './store.js';
 
 export function avatar(uid, size = '') {
@@ -48,8 +46,6 @@ export function openProfile() {
           close();
         }
       }, 'Namen speichern'),
-      usageCard(),
-      el('button', { class: 'btn ghost wide', type: 'button', onclick: exportAll }, 'Alle Daten sichern (Download)'),
       el('button', {
         class: 'btn danger wide',
         onclick: async () => {

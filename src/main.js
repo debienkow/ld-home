@@ -8,6 +8,7 @@ import './pickers.js';
 import { renderLogin } from './login.js';
 import { startStore, state, stopStore, subscribe } from './store.js';
 import { avatar, openProfile } from './profile.js';
+import { openAppSettings } from './settings.js';
 import { mountHome } from './home.js';
 import { mountShopping } from './shopping.js';
 import { mountFinance } from './finance.js';
@@ -93,7 +94,7 @@ function renderShell() {
       el('button', { class: 'brand-btn', type: 'button', 'aria-label': 'Zur Startseite', onclick: () => go('home') },
         el('img', { class: 'logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: '', draggable: 'false' }),
         el('span', { class: 'brand' }, 'WombiCoon'), DEMO ? el('span', { class: 'pill' }, 'Demo') : null),
-      el('span', { class: 'grow' }), profileBtn),
+      el('span', { class: 'grow' }), el('button', { class: 'icon-btn head-btn', type: 'button', 'aria-label': 'Einstellungen', onclick: openAppSettings }, icon('wrench')), profileBtn),
     nav, offline, main
   );
   showTab();

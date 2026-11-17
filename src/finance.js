@@ -6,8 +6,8 @@ import {
 import {
   myKey, nameOfKey, removeEntry, removeRecurring, saveEntry, saveFinConfig, saveRecurring, state, subscribe
 } from './store.js';
-import { importFile } from './dataio.js';
 import { addDays } from './evlogic.js';
+import { companyById, companyField, contractTitle, openCompany } from './companies.js';
 
 const catList = (type) => (type === 'income' ? state.fin.config.incomeCategories : state.fin.config.categories);
 const catOf = (type, id) => catList(type).find((c) => c.id === id) || (id ? { icon: '🧾', name: 'Sonstiges', color: '#9aa7c2' } : { icon: '▫️', name: 'Keine', color: '#5d6f96' });
@@ -346,7 +346,8 @@ function renderRecurring(root) {
     ...s.rows.map((r) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openRecurringSheet(r.rec) },
       el('span', { class: 'grow fin-main' },
         el('span', { class: 'item-name' }, r.rec.title),
-        el('span', { class: 'hint' }, `Konto ${nameOfKey(r.rec.payer)} · ${modeText(r.rec.weight)}${r.rec.intervalMonths > 1 ? ` · ${fmt(currentCents(r.rec, ym))} alle ${r.rec.intervalMonths} Monate` : ''}`)),
+        el('span', { class: 'hint' }, `Konto ${nameOfKey(r.rec.payer)} · ${modeText(r.rec.weight)}${r.rec.intervalMonths > 1 ? ` · ${fmt(currentCents(r.rec, ym))} alle ${r.rec.intervalMonths} Monate` : ''}`),
+        ...(companyById(r.rec.companyId) ? [el('span', { class: 'hint' }, `🏢 ${(() => { const co = companyById(r.rec.companyId); const k = (co.contracts || []).find((x) => x.id === r.rec.contractId); return k ? contractTitle(co, k) : co.name; })()}`)] : [])),
       el('span', { class: 'amount' }, fmt(r.monthly))))
   );
 }
@@ -370,6 +371,16 @@ function openRecurringSheet(rec) {
   openSheet(rec ? r.title : 'Neuer laufender Posten', (body, close) => {
     const versions = (r.versions || []).map((v) => ({ ...v }));
     const title = el('input', { type: 'text', value: r.title, placeholder: 'z. B. Strom' });
+    const contract = el('select');
+    const contractBox = el('label', null, 'Vertrag', contract);
+    const fillK = (cid, keep) => {
+      const co = companyById(cid);
+      const ks = co ? co.contracts || [] : [];
+      contractBox.classList.toggle('hidden', !ks.length);
+      contract.replaceChildren(el('option', { value: '' }, 'Kein bestimmter Vertrag'), ...ks.map((k) => el('option', { value: k.id, selected: k.id === keep }, k.name || 'Vertrag')));
+    };
+    const company = companyField(r.companyId || '', (cid) => fillK(cid, ''));
+    fillK(r.companyId || '', r.contractId || '');
     const payer = el('select', null, ...PEOPLE.map((k) => el('option', { value: k, selected: k === r.payer }, nameOfKey(k))));
     const interval = el('select', null, ...[[1, 'monatlich'], [3, 'vierteljährlich'], [6, 'halbjährlich'], [12, 'jährlich']].map(([n, l]) => el('option', { value: n, selected: n === (r.intervalMonths || 1) }, l)));
     const mode = el('select', null, ...[['equal', '50/50'], ['salary', 'nach Nettogehalt'], ['percent', 'Prozent'], ['fixed', 'Fester Betrag']].map(([k, l]) => el('option', { value: k, selected: k === ((r.weight && r.weight.mode) || 'equal') }, l)));
@@ -416,6 +427,9 @@ function openRecurringSheet(rec) {
     body.append(
       el('label', null, 'Bezeichnung', title),
       el('label', null, 'Abgebucht von Konto', payer),
+      el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Vertrag im DMS (optional)'), company.node),
+      contractBox,
+      ...(companyById(r.companyId) ? [el('button', { class: 'link-btn', type: 'button', onclick: () => openCompany(companyById(r.companyId)) }, `🏢 ${companyById(r.companyId).name} öffnen ›`)] : []),
       el('label', null, 'Zahlweise', interval),
       el('label', null, 'Gewichtung', mode), pctBox, fixedBox, offsetBox, preview,
       el('h3', null, 'Preisverlauf'),
@@ -441,7 +455,9 @@ function openRecurringSheet(rec) {
           if (!title.value.trim()) return (err.textContent = 'Bitte eine Bezeichnung eingeben.');
           if (!versions.length) return (err.textContent = 'Bitte mindestens einen Preis eintragen.');
           const weight = currentWeight();
-          await saveRecurring(rec && rec.id, { title: title.value.trim(), payer: payer.value, intervalMonths: Number(interval.value), weight, versions, sort: r.sort || 0 });
+          const cid = await company.value();
+          const kOk = (companyById(cid) || { contracts: [] }).contracts.some((k) => k.id === contract.value);
+          await saveRecurring(rec && rec.id, { title: title.value.trim(), payer: payer.value, intervalMonths: Number(interval.value), weight, versions, sort: r.sort || 0, companyId: cid, contractId: kOk ? contract.value : '' });
           close();
         } }, 'Speichern')));
   });
@@ -481,18 +497,12 @@ function openFinSettings() {
       );
     };
     draw();
-    const file = el('input', { type: 'file', accept: 'application/json', class: 'hidden', onchange: async (e) => {
-      if (e.target.files[0]) { await importFile(e.target.files[0]); close(); }
-    } });
     body.append(area,
       el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => {
         if (!cats.some((c) => c.name.trim())) return;
         await saveFinConfig({ categories: cats.filter((c) => c.name.trim()), rules: rules.filter((r) => r.match.trim()), presets: quick.filter((q) => q.title.trim()) });
         close();
-      } }, 'Speichern')),
-      el('h3', null, 'Daten importieren'),
-      el('p', { class: 'hint' }, 'Import-Datei aus der Excel (JSON) auswählen. Mehrfaches Importieren legt nichts doppelt an.'),
-      file, el('button', { class: 'btn ghost wide', onclick: () => file.click() }, 'Import-Datei wählen'));
+      } }, 'Speichern')));
   });
 }
 
@@ -522,7 +532,7 @@ export function mountFinance(root) {
       toolbar.classList.toggle('hidden', !toolbar.children.length);
     }
     fab.classList.toggle('hidden', view.sub === 'laufend');
-    root.classList.toggle('wide', view.sub === 'uebersicht');
+    root.classList.add('wide');
     drawContent();
   }
   view.redraw = draw;

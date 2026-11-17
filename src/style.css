@@ -434,3 +434,11 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .due-box { margin: 10px 0 12px; display: grid; gap: 6px; }
 .ios-hint { box-shadow: inset 4px 0 0 var(--primary); }
 .kbd { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--card-2); }
+.head-btn { color: var(--muted); margin-right: 2px; }
+.head-btn .ico { width: 22px; height: 22px; }
+
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 52px; }
+.pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: 0; background: none; color: var(--muted); opacity: .6; display: grid; place-items: center; cursor: pointer; }
+.pw-eye:hover { opacity: 1; }
+.chips.dragging { cursor: grabbing; user-select: none; }

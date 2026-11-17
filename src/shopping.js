@@ -201,6 +201,7 @@ function openSettings() {
       el('span', null, 'Kategorie-Überschriften anzeigen'),
       el('input', { type: 'checkbox', checked: showCatHeaders(), onchange: (e) => saveProfile({ showCatHeaders: e.target.checked }) }));
 
+    const openStores = new Set();
     const move = (arr, i, d) => {
       const j = i + d;
       if (j < 0 || j >= arr.length) return;
@@ -222,7 +223,7 @@ function openSettings() {
       const storeBlocks = stores.map((s, si) => {
         const ids = [...s.order.filter((id) => cats.some((c) => c.id === id)), ...cats.map((c) => c.id).filter((id) => !s.order.includes(id))];
         s.order = ids;
-        return el('details', { class: 'store-edit' },
+        const det = el('details', { class: 'store-edit', open: openStores.has(s.id), ontoggle: (e) => { if (e.target.open) openStores.add(s.id); else openStores.delete(s.id); } },
           el('summary', null, s.name),
           el('div', { class: 'edit-row' },
             el('input', { class: 'grow', value: s.name, oninput: (e) => (s.name = e.target.value) }),
@@ -236,6 +237,7 @@ function openSettings() {
               el('button', { class: 'icon-btn', type: 'button', onclick: () => move(s.order, i, 1) }, '↓'));
           })
         );
+        return det;
       });
       area.replaceChildren(
         el('h3', null, 'Kategorien'), ...catRows,
