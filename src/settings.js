@@ -4,6 +4,8 @@ import { info as gInfo, gcalReady, gcalPing, saveGcalConfig, syncNow, gcalConfig
 import { exportAll, importFile } from './dataio.js';
 import { usageCard } from './usage.js';
 
+const vOk = (v) => { const [a, b] = String(v || '').split('.').map(Number); return a > 1 || (a === 1 && b >= 5); };
+
 export function openAppSettings() {
   openSheet('Einstellungen', (body, close) => {
     const g = gcalConfig() || {};
@@ -13,7 +15,7 @@ export function openAppSettings() {
     const lastText = () => gInfo.at ? `Letzter Abgleich ${clock(gInfo.at)} Uhr: ${gInfo.ok ? `ok (${gInfo.changes} Änderungen)` : `fehlgeschlagen (${gInfo.error})`}.` : 'Noch kein Abgleich in dieser Sitzung.';
     const gmsg = el('p', { class: 'hint' }, gcalReady() ? `Verbunden. ${lastText()}` : 'Noch nicht verbunden.');
     const calLine = el('p', { class: 'hint' }, 'Neue Termine landen im Kalender, den das Skript verwaltet (ab Skript v1.4: „WombiCoon App“). Abgleich: sofort beim Speichern/Löschen in der App; Änderungen aus Google beim Öffnen, beim Zurückkehren in die App und alle 5 Minuten.');
-    const showCal = () => { if (gInfo.calendar) calLine.firstChild.textContent = `Neue Termine landen im Google-Kalender „${gInfo.calendar}“${gInfo.version >= '1.5' ? ` (Skript v${gInfo.version})` : ` (Skript ${gInfo.version ? 'v' + gInfo.version : 'älter als v1.4'}, bitte v1.5 bereitstellen)`}. Abgleich: sofort beim Speichern/Löschen in der App; Änderungen aus Google beim Öffnen, beim Zurückkehren in die App und alle 5 Minuten.`; };
+    const showCal = () => { if (gInfo.calendar) calLine.firstChild.textContent = `Neue Termine landen im Google-Kalender „${gInfo.calendar}“${vOk(gInfo.version) ? ` (Skript v${gInfo.version})` : ` (Skript ${gInfo.version ? 'v' + gInfo.version : 'älter als v1.4'}, bitte v1.5 bereitstellen)`}. Abgleich: sofort beim Speichern/Löschen in der App; Änderungen aus Google beim Öffnen, beim Zurückkehren in die App und alle 5 Minuten.`; };
     if (gcalReady()) gcalPing().then(showCal).catch(() => {});
     const saveG = async () => {
       if (!validGcalUrl(url.value)) { gmsg.textContent = 'Die Adresse muss mit https://script.google.com/macros/s/ beginnen und auf /exec enden.'; throw Object.assign(new Error('url'), { reported: true }); }

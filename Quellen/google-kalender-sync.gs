@@ -1,10 +1,28 @@
-/* LD Home: Google-Kalender-Sync v1.3 (17.11.2026) */
+/* WombiCoon: Google-Kalender-Sync v1.5 (17.11.2026) */
 const TOKEN = 'HIER-EIN-GEHEIMWORT-EINTRAGEN';
-const CAL_NAME = 'LD Home';
+const CAL_NAME = 'WombiCoon App';
+const VERSION = '1.5';
 const TZ = 'Europe/Berlin';
 
 function cal_() {
-  return CalendarApp.getCalendarsByName(CAL_NAME)[0] || CalendarApp.createCalendar(CAL_NAME, { timeZone: TZ });
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('CAL_ID');
+  let c = id ? CalendarApp.getCalendarById(id) : null;
+  if (!c) c = CalendarApp.getOwnedCalendarsByName(CAL_NAME)[0] || CalendarApp.createCalendar(CAL_NAME, { timeZone: TZ });
+  if (c.getId() !== id) props.setProperty('CAL_ID', c.getId());
+  return c;
+}
+function find_(gid, cal) {
+  if (!gid) return null;
+  let e = cal.getEventById(gid);
+  if (e) return e;
+  const cals = CalendarApp.getAllOwnedCalendars();
+  for (let i = 0; i < cals.length; i++) {
+    if (cals[i].getId() === cal.getId()) continue;
+    e = cals[i].getEventById(gid);
+    if (e) return e;
+  }
+  return null;
 }
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
@@ -51,7 +69,7 @@ function run_(req) {
   if (TOKEN.length < 16 || TOKEN.indexOf('HIER-') === 0) return out_({ error: 'geheimwort im skript fehlt oder ist zu kurz' });
   if (typeof r.token !== 'string' || r.token !== TOKEN) return out_({ error: 'token' });
   const cal = cal_();
-  if (r.action === 'ping') return out_({ ok: true, calendar: CAL_NAME });
+  if (r.action === 'ping') return out_({ ok: true, calendar: cal.getName(), version: VERSION });
   if (r.action === 'list') {
     const list = [];
     CalendarApp.getAllOwnedCalendars().forEach((c) => c.getEvents(d_(r.from), d_(r.to)).forEach((e) => list.push(ev_(e))));
@@ -59,12 +77,12 @@ function run_(req) {
   }
   if (r.action === 'listAll') {
     const all = [];
-    CalendarApp.getAllOwnedCalendars().forEach((c) => { if (c.getName() !== CAL_NAME) c.getEvents(d_(r.from), d_(r.to)).forEach((e) => all.push(ev_(e))); });
+    CalendarApp.getAllOwnedCalendars().forEach((c) => { if (c.getId() !== cal.getId()) c.getEvents(d_(r.from), d_(r.to)).forEach((e) => all.push(ev_(e))); });
     return out_({ ok: true, events: all });
   }
   if (r.action === 'upsert') {
     const p = r.event;
-    let e = p.gid ? CalendarApp.getEventById(p.gid) : null;
+    let e = find_(p.gid, cal);
     if (e && e.isRecurringEvent()) return out_({ error: 'serie' });
     if (!e) {
       e = p.allDay
@@ -75,10 +93,10 @@ function run_(req) {
     return out_({ ok: true, gid: e.getId(), updated: e.getLastUpdated().getTime() });
   }
   if (r.action === 'delete') {
-    const e = CalendarApp.getEventById(r.gid);
+    const e = find_(r.gid, cal);
     if (e && e.isRecurringEvent()) return out_({ error: 'serie' });
     if (e) e.deleteEvent();
-    return out_({ ok: true });
+    return out_({ ok: true, found: !!e });
   }
   return out_({ error: 'action' });
 }

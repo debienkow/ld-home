@@ -359,7 +359,7 @@ function openSalaries() {
     body.append(
       el('p', { class: 'hint' }, 'Wird für Posten mit Gewichtung „nach Nettogehalt“ gebraucht.'),
       ...PEOPLE.map((k) => el('label', null, nameOfKey(k), inputs[k])),
-      el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => {
+      el('div', { class: 'row end actions' }, el('button', { class: 'btn primary', type: 'button', onclick: async () => {
         await saveFinConfig({ salaries: Object.fromEntries(PEOPLE.map((k) => [k, parseMoney(inputs[k].value) || 0])) });
         close();
       } }, 'Speichern')));
@@ -498,7 +498,7 @@ function openFinSettings() {
     };
     draw();
     body.append(area,
-      el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => {
+      el('div', { class: 'row end actions' }, el('button', { class: 'btn primary', type: 'button', onclick: async () => {
         if (!cats.some((c) => c.name.trim())) return;
         await saveFinConfig({ categories: cats.filter((c) => c.name.trim()), rules: rules.filter((r) => r.match.trim()), presets: quick.filter((q) => q.title.trim()) });
         close();

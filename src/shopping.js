@@ -139,6 +139,7 @@ export function mountShopping(root) {
   }
 
   function render() {
+    if (selectedStore && selectedStore !== '__mine' && !storeOf(selectedStore)) selectedStore = '';
     renderChips();
     const items = state.items;
     const doneItems = items.filter((i) => i.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 12);

@@ -1,7 +1,7 @@
 /* Google-Kalender-Sync über ein Apps-Script (Web-App im Google-Konto) */
 import { endOf, addDays, todayIso } from './evlogic.js';
 import { toast } from './dom.js';
-import { removeEvent, replaceEvConfigField, saveEvConfig, saveEvent, state } from './store.js';
+import { patchEvent, removeEvent, replaceEvConfigField, saveEvConfig, saveEvent, state } from './store.js';
 
 export const gcalConfig = () => state.ev.config.gcal || null;
 export const validGcalUrl = (u) => /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(u || '').trim());
@@ -51,14 +51,25 @@ const deadG = new Set();
 const tombs = () => state.ev.config.gdel || {};
 const alive = (id) => !dead.has(id) && state.ev.events.some((x) => x.id === id);
 
-/* Nach dem Speichern eines Termins nach Google schreiben */
+/* Nach dem Speichern eines Termins nach Google schreiben; Fehlschlag wird vorgemerkt und beim Abgleich nachgeholt */
 export async function pushEvent(id, event) {
   if (!gcalReady() || event.gser || event.owner || dead.has(id)) return;
   try {
     const r = await call('upsert', { event: toG(event) });
     if (dead.has(id)) { await call('delete', { gid: r.gid }).catch(() => {}); return; }
-    await saveEvent(id, { gid: r.gid, gsyncedAt: r.updated || Date.now() });
-  } catch (e) { /* wird beim nächsten Abgleich nachgeholt */ }
+    await patchEvent(id, { gid: r.gid, gsyncedAt: r.updated || Date.now(), gdirty: false });
+  } catch (e) {
+    if (event.gid && alive(id) && String(e && e.message) !== 'serie') patchEvent(id, { gdirty: true });
+  }
+}
+/* Termin darf wieder abgeglichen werden (z. B. Erinnerung erneut eingeschaltet) */
+export const revive = (id) => dead.delete(id);
+/* Termin aus Google entfernen, in der App behalten */
+export async function unlinkEvent(event) {
+  if (!event.gid) return;
+  deadG.add(event.gid);
+  await saveEvConfig({ gdel: { [event.gid]: Date.now() } });
+  pushDelete(event.gid);
 }
 export async function pushDelete(gid) {
   if (!gcalReady() || !gid) return;
@@ -114,7 +125,7 @@ async function runSync(opts) {
       if (!e) {
         await saveEvent(idFor(g.key), newLocal(g));
         changes++;
-      } else if (g.updated > (e.gsyncedAt || 0) + 1500 && !sameFields(e, g)) {
+      } else if (!e.gdirty && g.updated > (e.gsyncedAt || 0) + 1500 && !sameFields(e, g)) {
         await saveEvent(e.id, { ...fromG(g), gsyncedAt: g.updated });
         changes++;
       }
@@ -126,8 +137,10 @@ async function runSync(opts) {
     const risky = (!gevs.length && gone.length >= 2) || (gone.length > 5 && gone.length > synced.length / 2);
     if (risky && !opts.force) skipped = gone.length;
     else for (const e of gone) { await removeEvent(e.id); changes++; }
+    const goneIds = new Set(skipped ? [] : gone.map((e) => e.id));
     for (const e of state.ev.events) {
-      if (!e.gid && !e.owner && alive(e.id) && inRange(e) && e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
+      if (e.owner || e.gser || goneIds.has(e.id) || !alive(e.id) || !inRange(e)) continue;
+      if (e.gid ? e.gdirty : e.createdBy === state.user.uid) { await pushEvent(e.id, e); changes++; }
     }
     return { ok: true, changes, skipped };
   } catch (err) {

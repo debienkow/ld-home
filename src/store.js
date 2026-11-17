@@ -290,6 +290,8 @@ export const saveEvent = async (id, data) => {
   if (id) { await settle(setDoc(doc(db, 'events', id), data, { merge: true })); return id; }
   return create('events', data);
 };
+/* Nur vorhandene Termine ergänzen (legt nichts neu an) */
+export const patchEvent = (id, patch) => settle(updateDoc(doc(db, 'events', id), patch).catch(() => {}));
 export const removeEvent = (id) => settle(deleteDoc(doc(db, 'events', id)));
 export const saveIdea = (id, data) =>
   id ? settle(setDoc(doc(db, 'event_ideas', id), data, { merge: true })) : create('event_ideas', data);

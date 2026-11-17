@@ -46,9 +46,19 @@ const tess = (mode) => ({
   }
 });
 
+/* Liste der Programmdateien für den Service Worker */
+const assetList = (mode) => ({
+  name: 'asset-list',
+  apply: 'build',
+  generateBundle(_, bundle) {
+    if (mode === 'demo') return;
+    this.emitFile({ type: 'asset', fileName: 'assets.json', source: JSON.stringify(Object.keys(bundle).filter((f) => f.startsWith('assets/'))) });
+  }
+});
+
 export default defineConfig(({ mode }) => ({
   base: '/ld-home/',
   build: { target: 'es2020' },
-  plugins: [csp(), tess(mode)],
+  plugins: [csp(), tess(mode), assetList(mode)],
   resolve: mode === 'demo' ? { alias: { 'firebase/firestore': demo('fs.js'), 'firebase/auth': demo('auth.js'), 'firebase/app': demo('app.js') } } : {}
 }));

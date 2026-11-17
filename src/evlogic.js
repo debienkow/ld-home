@@ -38,7 +38,9 @@ export function workdays(start, end) {
 const fmtDate = (s, opts) => parseIso(s).toLocaleDateString('de-DE', opts);
 export function rangeText(e) {
   const end = endOf(e);
-  const short = { weekday: 'short', day: '2-digit', month: '2-digit' };
+  const year = new Date().getFullYear();
+  const far = +e.start.slice(0, 4) !== year || +end.slice(0, 4) !== year;
+  const short = { weekday: 'short', day: '2-digit', month: '2-digit', ...(far ? { year: '2-digit' } : {}) };
   const t = (x) => (!e.allDay && x ? ` ${x}` : '');
   if (end === e.start) return `${fmtDate(e.start, short)}${e.allDay ? '' : t(e.startTime) + (e.endTime ? `–${e.endTime}` : '')}`;
   return `${fmtDate(e.start, short)}${t(e.startTime)} – ${fmtDate(end, short)}${t(e.endTime)}`;

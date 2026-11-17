@@ -80,6 +80,7 @@ window.addEventListener('popstate', () => {
   if (top) top(true);
 });
 document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.tagName !== 'BUTTON' && e.target.getAttribute && e.target.getAttribute('role') === 'button') { e.preventDefault(); e.target.click(); return; }
   const top = sheetStack[sheetStack.length - 1];
   if (!top) return;
   if (e.key === 'Escape') { e.preventDefault(); top(); return; }

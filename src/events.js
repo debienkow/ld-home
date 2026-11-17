@@ -8,6 +8,7 @@ import { PEOPLE } from './finlogic.js';
 import { avatar, keyAvatar } from './profile.js';
 import { placeField } from './places.js';
 import { deleteEvent, pushEvent } from './gcal.js';
+import { companyById, openCompany } from './companies.js';
 
 const cats = () => { const l = state.ev.config.categories || DEFAULT_EVENT_CATEGORIES; return l.some((c) => c.id === VACATION.id) ? l : [...l, VACATION]; };
 export { isVac };
@@ -42,8 +43,24 @@ export function eventRow(e, onclick, plain) {
     badges(e));
 }
 
+/* Automatischer Termin einer Kündigungsfrist: nur ansehen, gepflegt wird er über den Vertrag */
+function openDeadlineSheet(e) {
+  openSheet(e.title, (body, close) => {
+    const co = companyById(String(e.src || '').split(':')[0]);
+    body.append(
+      el('div', { class: 'info-list' },
+        el('div', { class: 'info-row' }, el('span', { class: 'hint' }, 'Letzter Tag zum Kündigen'), el('span', null, parseIso(e.start).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })))),
+      e.note ? el('p', { class: 'pre' }, e.note) : null,
+      el('p', { class: 'hint note-line' }, `Dieser Termin kommt automatisch aus den Vertragsdaten${e.owner ? ' (privat, nur für dich sichtbar)' : ''}. Datum ändern oder entfernen: im Vertrag die Laufzeit anpassen, „Gekündigt“ wählen oder „An Kündigungsfrist erinnern“ ausschalten.`),
+      el('div', { class: 'row end actions' },
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Schließen'),
+        co ? el('button', { class: 'btn primary', type: 'button', onclick: () => { close(); setTimeout(() => openCompany(co), 0); } }, '🏢 Zum Vertrag') : null));
+  });
+}
+
 /* Termin anlegen, ansehen, bearbeiten */
 export function openEventSheet(event, preset) {
+  if (event && event.kind === 'deadline') return openDeadlineSheet(event);
   const me = myKey();
   const e = event || { title: '', categoryId: 'treffen', start: todayIso(), end: '', allDay: false, startTime: '', endTime: '', location: '', note: '', important: false, participants: [...PEOPLE], vacation: [], guests: [], grsvp: {}, ...(preset || {}) };
   openSheet(event ? e.title : 'Neuer Termin', (body, close) => {
@@ -119,7 +136,7 @@ export function openEventSheet(event, preset) {
       }
       const participants = PEOPLE.filter((k) => who[k].checked);
       const rsvp = { ...(e.rsvp || {}) };
-      for (const k of PEOPLE) if (!participants.includes(k)) delete rsvp[k];
+      for (const k of PEOPLE) if (!participants.includes(k)) rsvp[k] = '';
       const whole = allDay.checked || !startTime.value;
       const payload = {
         title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: whole,
@@ -254,7 +271,7 @@ function renderCalendar(root, view) {
       if (!iso) return el('span', { class: 'cal-cell empty', style: { gridColumn: `${i + 1}`, gridRow: `1 / span ${n + 2}` } });
       const singles = state.ev.events.filter((e) => !multi(e) && covers(e, iso));
       const hol = holidayOn(iso);
-      const any = singles.length || placed.some((p) => p.c0 <= i && i <= p.c1);
+      const any = singles.length || bars.some((e) => covers(e, iso));
       return el('button', {
         class: 'cal-cell' + (iso === todayIso() ? ' today' : '') + (any ? ' has-ev' : '') + (hol ? ' holiday' : '') + (iso === view.day ? ' sel' : ''),
         style: { gridColumn: `${i + 1}`, gridRow: `1 / span ${n + 2}` }, title: hol ? `${hol.name} (${hol.region})` : null,

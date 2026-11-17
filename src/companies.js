@@ -3,7 +3,7 @@ import { confirmSheet, el, openSheet, toast, uid } from './dom.js';
 import { saveDms, saveDmsConfig, saveEvent, state, subscribe } from './store.js';
 import { currentCents, fmt } from './finlogic.js';
 import { addDays, todayIso } from './evlogic.js';
-import { deleteEvent, pushEvent } from './gcal.js';
+import { deleteEvent, pushEvent, revive, unlinkEvent } from './gcal.js';
 import { docRow, docCatOf, openDocSheet } from './dms.js';
 
 const allCompanies = () => (Array.isArray(state.dms.config.companies) ? state.dms.config.companies : []);
@@ -70,8 +70,19 @@ let syncTimer = null;
 export function startDeadlineSync() {
   subscribe(() => { clearTimeout(syncTimer); syncTimer = setTimeout(syncDeadlines, 2500); });
 }
+let syncBusy = false;
 async function syncDeadlines() {
-  if (!state.user || !state.ev.loaded || !state.dms.cfgLoaded) return;
+  if (!state.user || !state.online || !state.ev.loaded || !state.dms.cfgLoaded) return;
+  if (syncBusy) { clearTimeout(syncTimer); syncTimer = setTimeout(syncDeadlines, 2500); return; }
+  syncBusy = true;
+  try { await runDeadlines(); } catch (e) { console.error(e); } finally { syncBusy = false; }
+}
+/* Neuen Termin nur von dem Gerät hochladen, dessen Eintrag gilt (sonst Doppel bei zwei offenen Geräten) */
+const pushLater = (id) => setTimeout(() => {
+  const now = state.user && state.ev.events.find((e) => e.id === id);
+  if (now && !now.gid && !now.owner && now.createdBy === state.user.uid) pushEvent(id, now);
+}, 3000 + Math.random() * 2000);
+async function runDeadlines() {
   const want = new Map();
   for (const c of current()) for (const k of c.contracts || []) {
     const d = deadlineOf(k);
@@ -87,10 +98,14 @@ async function syncDeadlines() {
   }
   for (const [id, p] of want) {
     const cur = state.ev.events.find((e) => e.id === id);
-    if (cur && cur.start === p.start && cur.title === p.title && cur.note === p.note && (cur.owner || '') === p.owner) continue;
-    const payload = cur ? p : { ...p, createdBy: state.user.uid, createdAt: Date.now() };
+    const hide = !!(cur && cur.gid && p.owner);
+    if (cur && !hide && cur.start === p.start && cur.title === p.title && cur.note === p.note && (cur.owner || '') === p.owner) continue;
+    if (hide) await unlinkEvent(cur);
+    const payload = cur ? (hide ? { ...p, gid: '', gdirty: false } : p) : { ...p, createdBy: state.user.uid, createdAt: Date.now() };
+    revive(id);
     await saveEvent(id, payload);
-    pushEvent(id, { ...(cur || {}), ...payload });
+    if (cur && cur.gid && !hide) pushEvent(id, { ...cur, ...payload });
+    else if (!p.owner) pushLater(id);
   }
 }
 
