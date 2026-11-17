@@ -249,6 +249,7 @@ export const addItem = (item) =>
     qty: item.qty || '',
     categoryId: item.categoryId || 'sonstiges',
     store: item.store || null,
+    owner: item.owner || '',
     done: false,
     doneAt: 0
   });

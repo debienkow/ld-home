@@ -1,7 +1,7 @@
 /* Tab Finanzen */
 import { confirmSheet, el, icon, keepChips, openSheet, uid } from './dom.js';
 import {
-  balance, currentCents, DEFAULT_PRESETS, fmt, logiShare, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
+  balance, currentCents, isDue, DEFAULT_PRESETS, fmt, logiShare, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
 } from './finlogic.js';
 import {
   myKey, nameOfKey, removeEntry, removeRecurring, saveEntry, saveFinConfig, saveRecurring, state, subscribe
@@ -38,7 +38,13 @@ export function openEntrySheet(entry, preset) {
     const time = el('input', { type: 'time', value: e.time || '' });
     const timeLabel = el('label', { class: 'grow' }, 'Uhrzeit', time);
     const dateText = el('span', null, 'Datum');
-    const future = () => type === 'expense' && !!date.value && date.value > todayStr();
+    const ahead = () => type === 'expense' && !!date.value && (date.value > todayStr() || (date.value === todayStr() && !!time.value && time.value > nowTime()));
+    const plan = el('input', { type: 'checkbox', checked: entry ? !!entry.planned : true });
+    let planTouched = !!entry;
+    plan.addEventListener('change', () => { planTouched = true; refresh(); });
+    const planBox = el('label', { class: 'toggle-row' }, el('span', null, '🗓 Als geplant speichern (noch nicht im Saldo)'), plan);
+    const offerPlan = () => type === 'expense' && (ahead() || !!(entry && entry.planned));
+    const future = () => offerPlan() && plan.checked;
     const cat = el('select');
     const payer = el('select');
     const noSplit = el('input', { type: 'checkbox', checked: e.noSplit });
@@ -63,12 +69,14 @@ export function openEntrySheet(entry, preset) {
       payer.replaceChildren(...keys.map((k) => el('option', { value: k, selected: k === selected }, k ? nameOfKey(k) : PAYER_NONE)));
     };
     const refresh = () => {
+      if (!planTouched && ahead()) plan.checked = true;
       const isPlanned = future();
+      planBox.classList.toggle('hidden', !offerPlan());
       const keep = payer.value;
       if (isPlanned && payer.options.length !== 3) fillPayers(keep);
       else if (!isPlanned && payer.options.length !== 2) fillPayers(PEOPLE.includes(keep) ? keep : myKey());
       dateText.textContent = type === 'expense' ? 'Fälligkeit' : 'Datum';
-      timeLabel.classList.toggle('hidden', isPlanned);
+      timeLabel.classList.toggle('hidden', isPlanned && date.value > todayStr());
       catBox.classList.toggle('hidden', type === 'settlement');
       splitBox.classList.toggle('hidden', type === 'settlement');
       splitText.textContent = type === 'income'
@@ -78,7 +86,7 @@ export function openEntrySheet(entry, preset) {
       payerText.textContent = type === 'income' ? 'Eingegangen bei (Konto von)' : type === 'settlement' ? 'Wer zahlt den Ausgleich?' : isPlanned ? 'Wird abgebucht von' : 'Bezahlt von';
       info.textContent = type === 'settlement' && payer.value
         ? `${nameOfKey(payer.value)} zahlt an ${nameOfKey(otherOf(payer.value))}`
-        : isPlanned ? 'Liegt in der Zukunft: wird als geplante Ausgabe vorgemerkt und erst eingerechnet, wenn du sie verbuchst.' : '';
+        : isPlanned ? 'Wird als geplante Ausgabe vorgemerkt und erst eingerechnet, wenn du sie verbuchst.' : offerPlan() ? 'Wird sofort als Ausgabe eingerechnet.' : '';
       seg.replaceChildren(...[['expense', 'Ausgabe'], ['income', 'Einnahme'], ['settlement', 'Ausgleich']].map(([k, l]) =>
         el('button', { type: 'button', class: 'seg-btn' + (type === k ? ' active' : ''), onclick: () => {
           const prev = payer.value;
@@ -101,6 +109,7 @@ export function openEntrySheet(entry, preset) {
     fillPayers(e.payer);
     payer.addEventListener('change', refresh);
     date.addEventListener('change', refresh);
+    time.addEventListener('change', refresh);
     cat.addEventListener('change', () => {
       catTouched = true;
       if (type === 'income' && !splitTouched) noSplit.checked = cat.value === 'gehalt';
@@ -151,7 +160,7 @@ export function openEntrySheet(entry, preset) {
         title: title.value.trim() || 'Haushaltsausgleich',
         cents,
         date: book ? todayStr() : date.value,
-        time: isPlanned ? '' : time.value || '',
+        time: isPlanned && date.value > todayStr() ? '' : time.value || '',
         payer: payer.value,
         categoryId: type === 'settlement' ? 'ausgleich' : cat.value,
         noSplit: type !== 'settlement' && noSplit.checked,
@@ -167,7 +176,7 @@ export function openEntrySheet(entry, preset) {
       el('label', null, 'Titel', title), suggest,
       el('label', null, 'Betrag (€)', amount),
       el('div', { class: 'row' }, el('label', { class: 'grow' }, dateText, date), timeLabel),
-      catBox, payerLabel, splitBox, info,
+      planBox, catBox, payerLabel, splitBox, info,
       el('label', null, 'Notiz', note), err,
       ...(entry && entry.planned ? [el('button', { class: 'btn primary wide', type: 'button', onclick: () => save(true) }, 'Jetzt als bezahlt verbuchen')] : []),
       el('div', { class: 'row between actions' },
@@ -226,7 +235,7 @@ function renderOverview(root, view) {
   const rec = recurringSummary(recurring, config.salaries, todayStr().slice(0, 7));
   const plannedList = entries.filter((x) => x.planned);
   const plannedSum = plannedList.reduce((a, x) => a + x.cents, 0);
-  const plannedDue = plannedList.filter((x) => x.date <= todayStr()).length;
+  const plannedDue = plannedList.filter(isDue).length;
   const goRec = () => { view.sub = 'laufend'; view.q = ''; view.redraw(); };
 
   root.replaceChildren(el('div', { class: 'grid stats' },
@@ -307,7 +316,7 @@ function renderPlanned(root) {
       list.length ? el('p', { class: 'big-number' }, fmt(total)) : null),
     ...(list.length ? list.map((x) => {
       const cat = catOf('expense', x.categoryId);
-      const due = x.date <= todayStr();
+      const due = isDue(x);
       return el('button', { class: 'item fin-row' + (due ? ' due' : ''), type: 'button', onclick: () => openEntrySheet(x) },
         circle(cat),
         el('span', { class: 'grow fin-main' },

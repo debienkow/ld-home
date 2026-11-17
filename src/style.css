@@ -432,3 +432,5 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .item.due { background: color-mix(in srgb, var(--warn) 14%, var(--card-2)); }
 .due-text { color: var(--warn); font-weight: 700; font-size: .88rem; margin: 4px 0; display: block; }
 .due-box { margin: 10px 0 12px; display: grid; gap: 6px; }
+.ios-hint { box-shadow: inset 4px 0 0 var(--primary); }
+.kbd { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--card-2); }

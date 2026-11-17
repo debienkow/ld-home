@@ -56,7 +56,7 @@ export function mountShopping(root) {
   const add = (name, qty, categoryId) => {
     if (!name) return;
     const known = catalogEntries().find((e) => norm(e.name) === norm(name));
-    addItem({ name: known ? known.name : name, qty, categoryId: categoryId || (known && known.categoryId) || 'sonstiges' });
+    addItem({ name: known ? known.name : name, qty, categoryId: categoryId || (known && known.categoryId) || 'sonstiges', owner: selectedStore === '__mine' ? state.user.uid : '' });
     search.value = '';
     renderSuggest();
   };
@@ -114,6 +114,7 @@ export function mountShopping(root) {
     chips.replaceChildren(
       mk('', 'Alle'),
       ...state.settings.stores.map((s) => mk(s.id, s.name)),
+      mk('__mine', '🔒 Nur meine'),
       el('button', { class: 'chip gear', type: 'button', onclick: openSettings, 'aria-label': 'Einkauf-Einstellungen' }, icon('gear'))
     );
   }
@@ -147,14 +148,14 @@ export function mountShopping(root) {
         : [])
     );
 
-    const open = items.filter((i) => !i.done && (!selectedStore || !i.store || i.store === selectedStore));
+    const open = items.filter((i) => !i.done && (selectedStore === '__mine' ? !!i.owner : !selectedStore || !i.store || i.store === selectedStore));
     const blocks = [];
     for (const cat of orderedCategories()) {
       const inCat = open.filter((i) => (catOf(i.categoryId).id) === cat.id).sort((a, b) => a.name.localeCompare(b.name));
       if (!inCat.length) continue;
       blocks.push(...(showCatHeaders() ? [el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name)] : []), ...inCat.map((i) => row(i, false)));
     }
-    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
+    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore === '__mine' ? 'Keine privaten Artikel. Artikel antippen und „Nur für mich anzeigen“ wählen.' : selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
     if (search.value.trim()) renderSuggest();
   }
 

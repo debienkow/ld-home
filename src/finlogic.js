@@ -48,6 +48,8 @@ export function parseMoney(text) {
 export const monthOf = (date) => date.slice(0, 7);
 export const todayStr = () => new Date().toLocaleDateString('sv-SE');
 export const nowTime = () => new Date().toTimeString().slice(0, 5);
+/* Geplanter Eintrag: Zeitpunkt erreicht? */
+export const isDue = (x) => x.date < todayStr() || (x.date === todayStr() && (!x.time || x.time <= nowTime()));
 export const monthLabel = (ym) => {
   const [y, m] = ym.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });

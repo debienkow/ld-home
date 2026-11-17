@@ -1,7 +1,7 @@
 /* Tab Home */
 import { el, icon } from './dom.js';
 import { myKey, nameOfKey, state, subscribe } from './store.js';
-import { fmt, todayStr } from './finlogic.js';
+import { fmt, isDue, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { docRow, openDocSheet, recentDocs } from './dms.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
@@ -25,7 +25,7 @@ export function mountHome(root, go) {
       if (s) byStore[s.name] = (byStore[s.name] || 0) + 1;
     }
     const tags = Object.entries(byStore).map(([n, c]) => el('span', { class: 'tag big' }, `${n}: ${c}`));
-    const due = state.fin.entries.filter((x) => x.planned && x.date <= todayStr());
+    const due = state.fin.entries.filter((x) => x.planned && isDue(x));
     const saldo = saldoText();
     const notice = dueSoon();
     const pending = upcoming().filter(needsAnswer);
@@ -34,7 +34,17 @@ export function mountHome(root, go) {
     const rows = (list) => el('div', { class: 'card-list' }, ...list.map((e) => eventRow(e, null, true)));
     const docs = recentDocs(3);
 
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    let hideIos = false;
+    try { hideIos = localStorage.getItem('wc-ios-hint') === '1'; } catch (e) { /* ignorieren */ }
+    const iosHint = ios && !standalone && !hideIos ? el('section', { class: 'card ios-hint' },
+      el('h2', null, '📲 WombiCoon als App installieren'),
+      el('p', null, 'In Safari unten (iPad: oben rechts) auf „Teilen“ ', el('span', { class: 'kbd' }, '⬆︎'), ' tippen, dann „Zum Home-Bildschirm“ und „Hinzufügen“. Danach WombiCoon über das neue Symbol öffnen.'),
+      el('button', { class: 'link-btn', type: 'button', onclick: () => { try { localStorage.setItem('wc-ios-hint', '1'); } catch (e) { /* ignorieren */ } render(); } }, 'Ausblenden')) : null;
+
     root.replaceChildren(
+      ...(iosHint ? [iosHint] : []),
       el('div', { class: 'greet' },
         el('h1', { class: 'greeting' }, `${greeting()}, ${nameOfKey(myKey())} 👋`),
         el('p', { class: 'hint' }, new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
