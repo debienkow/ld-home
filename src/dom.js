@@ -105,6 +105,26 @@ if (window.visualViewport) {
   setKb();
 }
 
+/* Feld im Fenster sichtbar halten: zwischen Fensterkopf und Aktionsleiste/Tastatur */
+function keepVisible(t, sheet) {
+  if (document.activeElement !== t || !sheet.isConnected) return;
+  const head = sheet.querySelector('.sheet-head');
+  const bar = sheet.querySelector('.sheet-body > .actions');
+  const vv = window.visualViewport;
+  const sr = sheet.getBoundingClientRect();
+  const topLimit = (head ? head.getBoundingClientRect().bottom : sr.top) + 8;
+  const screenBottom = vv ? vv.height + vv.offsetTop : window.innerHeight;
+  const bottomLimit = Math.min(sr.bottom, screenBottom) - (bar ? bar.offsetHeight : 0) - 8;
+  const r = (t.closest('label') || t).getBoundingClientRect();
+  if (r.bottom > bottomLimit) sheet.scrollBy({ top: Math.min(r.bottom - bottomLimit, r.top - topLimit), behavior: 'smooth' });
+  else if (r.top < topLimit) sheet.scrollBy({ top: r.top - topLimit, behavior: 'smooth' });
+}
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => {
+  const t = document.activeElement;
+  const sheet = t && t.closest && t.closest('.sheet');
+  if (sheet && isIOS) setTimeout(() => keepVisible(t, sheet), 60);
+});
+
 /* Handy: Eingabefeld beim Tippen nach oben holen, damit Vorschläge darunter sichtbar bleiben */
 const touchUi = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const typable = (t) => t && ((t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|range)$/.test(t.type)) || t.tagName === 'TEXTAREA');
@@ -117,7 +137,8 @@ if (touchUi) {
     const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
     const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     const sugg = !!t.closest('.tag-input, .place-field, .field') || t.dataset.sugg === '1';
-    if (!sugg && (isIOS || t.getBoundingClientRect().top <= vh * 0.4)) return;
+    if (!sugg && isIOS) { [400, 800].forEach((ms) => setTimeout(() => keepVisible(t, sheet), ms)); return; }
+    if (!sugg && t.getBoundingClientRect().top <= vh * 0.4) return;
     document.documentElement.classList.add('typing');
     setTimeout(() => {
       if (document.activeElement !== t) return;
