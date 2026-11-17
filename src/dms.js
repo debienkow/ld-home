@@ -51,9 +51,44 @@ function openCamera(onShot, onDone) {
 let camStop = () => {};
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') camStop(); });
 
+/* Dokument ansehen (nur lesen) */
+function openDocView(doc) {
+  openSheet(doc.title, (body, close) => {
+    const c = catOf(doc.categoryId);
+    let pages = [];
+    const strip = el('div', { class: 'page-strip big' });
+    const status = el('p', { class: 'hint' }, 'Seiten werden geladen …');
+    const info = (label, value) => (value ? el('div', { class: 'info-row' }, el('span', { class: 'hint' }, label), el('span', null, value)) : null);
+    const tags = (doc.tags || []).length ? el('div', { class: 'tags' }, ...doc.tags.map((t) => el('span', { class: 'tag' }, t))) : null;
+    const text = (doc.text || '').trim();
+    body.append(
+      strip, status,
+      el('div', { class: 'info-list' },
+        info('Kategorie', `${c.icon} ${c.name}`),
+        info('Datum', doc.date ? dateText(doc.date) : ''),
+        info('Seiten', String(doc.pageCount || '')),
+        info('Notiz', doc.note || '')),
+      tags,
+      text ? el('details', { class: 'ocr-view' }, el('summary', null, 'Erkannter Text'), el('p', null, text)) : null,
+      el('div', { class: 'row between actions' },
+        el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
+          if (!pages.length) return;
+          downloadBlob(await imagesToPdf(pages.map((p) => p.img)), `${(doc.title || 'dokument').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'dokument'}.pdf`);
+        } }, '📥 PDF'),
+        el('button', { class: 'btn primary', type: 'button', onclick: () => { close(); setTimeout(() => openDocSheet(doc, true), 0); } }, '✏️ Bearbeiten')));
+    loadPages(doc.id).then((p) => {
+      pages = p;
+      status.textContent = '';
+      strip.replaceChildren(...pages.map((x, i) => el('div', { class: 'page-thumb' },
+        el('img', { src: x.img, alt: `Seite ${i + 1}`, onclick: () => openPageView(x.img, i + 1) }))));
+    }).catch(() => (status.textContent = 'Seiten konnten nicht geladen werden (offline?). Bitte später erneut öffnen.'));
+  });
+}
+
 /* Dokument anlegen oder bearbeiten */
-export function openDocSheet(doc) {
-  openSheet(doc ? doc.title : 'Neues Dokument', (body, close) => {
+export function openDocSheet(doc, edit = false) {
+  if (doc && !edit) return openDocView(doc);
+  openSheet(doc ? `${doc.title} bearbeiten` : 'Neues Dokument', (body, close) => {
     let pages = []; // { id?, img, isNew }
     const removed = [];
     let ocrText = doc ? doc.text || '' : '';
