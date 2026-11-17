@@ -7,6 +7,7 @@ import { todayIso } from './evlogic.js';
 import { companies, companyById, companyCard, companyField, deadlineOf, findCompanies, openCompany, openCompanyList } from './companies.js';
 
 const cats = () => state.dms.config.categories || DEFAULT_DMS_CATEGORIES;
+export const docCatOf = (id) => catOf(id);
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
 const dateText = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const dataToFile = (d) => ({ type: 'image/jpeg', name: 'foto.jpg', dataUrl: d });
@@ -128,7 +129,7 @@ function openDocView(doc) {
     body.append(
       strip, status,
       el('div', { class: 'info-list' },
-        ...(companyById(doc.companyId) ? [el('button', { type: 'button', class: 'info-row link-row', onclick: () => openCompany(companyById(doc.companyId)) }, el('span', { class: 'hint' }, 'Unternehmen'), el('span', null, `🏢 ${companyById(doc.companyId).name} ›`))] : []),
+        ...(companyById(doc.companyId) ? [el('button', { type: 'button', class: 'info-row link-row', onclick: () => openCompany(companyById(doc.companyId)) }, el('span', { class: 'hint' }, 'Unternehmen'), el('span', null, `🏢 ${companyById(doc.companyId).name}${((companyById(doc.companyId).contracts || []).find((k) => k.id === doc.contractId) || {}).name ? ` · ${companyById(doc.companyId).contracts.find((k) => k.id === doc.contractId).name}` : ''} ›`))] : []),
         info('Kategorie', `${c.icon} ${c.name}`),
         info('Datum', doc.date ? dateText(doc.date) : ''),
         info('Seiten', String(doc.pageCount || '')),
@@ -167,7 +168,17 @@ export function openDocSheet(doc, edit = false) {
     title.addEventListener('input', () => (touchedTitle = true));
     const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: doc && c.id === doc.categoryId }, `${c.icon} ${c.name}`)));
     const tags = tagField(doc ? doc.tags : []);
-    const company = companyField(doc ? doc.companyId : '');
+    const contract = el('select');
+    const contractBox = el('label', null, 'Vertrag (optional)', contract);
+    const fillContracts = (cid) => {
+      const co = companyById(cid);
+      const ks = co ? co.contracts || [] : [];
+      contractBox.classList.toggle('hidden', !ks.length);
+      const cur = contract.value || (doc && doc.companyId === cid ? doc.contractId : '');
+      contract.replaceChildren(el('option', { value: '' }, 'Kein bestimmter Vertrag'), ...ks.map((k) => el('option', { value: k.id, selected: k.id === cur }, `${k.name || 'Vertrag'}${(k.start || k.end) && !/\d{4}/.test(k.name || '') ? ` (${[k.start, k.end].filter(Boolean).map((x) => x.slice(0, 4)).join('–')})` : ''}`)));
+    };
+    const company = companyField(doc ? doc.companyId : '', (cid) => { contract.value = ''; fillContracts(cid); });
+    fillContracts(doc ? doc.companyId : '');
     const date = el('input', { type: 'date', value: doc ? doc.date : todayIso() });
     const note = el('input', { type: 'text', value: doc ? doc.note || '' : '', placeholder: 'Notiz (optional)' });
     let loading = !!doc;
@@ -232,7 +243,7 @@ export function openDocSheet(doc, edit = false) {
       const fresh = pages.filter((p) => p.isNew).map((p) => ({ idx: ++idx, img: p.img }));
       try {
         await saveDms(doc && doc.id, {
-          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), companyId: await company.value(), date: date.value || todayIso(),
+          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), ...(await (async () => { const cid = await company.value(); const ok = (companyById(cid) || { contracts: [] }).contracts.some((k) => k.id === contract.value); return { companyId: cid, contractId: ok ? contract.value : '' }; })()), date: date.value || todayIso(),
           note: note.value.trim(), text: text.value.slice(0, 400000), pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
@@ -250,6 +261,7 @@ export function openDocSheet(doc, edit = false) {
       camera, gallery, strip, status,
       el('label', null, 'Titel', title), el('label', null, 'Kategorie', cat),
       el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Unternehmen'), company.node),
+      contractBox,
       el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Stichworte'), tags.node), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
       el('label', null, 'Erkannter Text', text),
       el('div', { class: 'row wrap' },

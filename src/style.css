@@ -409,3 +409,12 @@ wc-pick { display: block; min-width: 0; }
 .contract-tile .item-name { font-size: 1.1rem; font-weight: 700; }
 .contract-tile .more { color: var(--muted); font-size: 1.4rem; }
 .contract-tile .hint { white-space: normal; overflow: visible; text-overflow: clip; }
+.company-card.no-contract { box-shadow: inset 4px 0 0 var(--warn); }
+.company-card.archived { opacity: .6; }
+.warn-text { display: block; color: var(--warn); font-size: .82rem; font-weight: 600; margin-top: 2px; }
+.warn-line { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.card.contract.ended { opacity: .7; }
+.tag.muted { background: var(--card); color: var(--muted); }
+.doc-group { margin-top: 10px; }
+.cat-group { margin-bottom: 10px; }
+.cat-group > .hint { margin: 0 2px 6px; }
