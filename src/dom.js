@@ -98,7 +98,7 @@ if (window.visualViewport) {
   const root = document.documentElement.style;
   /* iOS verschiebt bei offener Tastatur den sichtbaren Bereich: Fenster an diesen Bereich heften */
   const setKb = isIOS
-    ? () => { root.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`); root.setProperty('--vvh', `${Math.round(vv.height)}px`); }
+    ? () => { root.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`); root.setProperty('--vvh', `${Math.round(vv.height)}px`); document.documentElement.classList.toggle('kb-open', window.innerHeight - vv.height > 120); }
     : () => root.setProperty('--kb', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
   vv.addEventListener('resize', setKb);
   vv.addEventListener('scroll', setKb);
