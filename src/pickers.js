@@ -51,6 +51,14 @@ function dateSheet(field) {
       grid.replaceChildren(...cells);
     };
     const step = (n) => { const x = new Date(y, m + n, 1); y = x.getFullYear(); m = x.getMonth(); draw(); };
+    let x0 = null, y0 = 0;
+    grid.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    grid.addEventListener('touchend', (e) => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    });
     const fromTyped = () => {
       const iso = parseDe(typed.value);
       if (!iso) return '';

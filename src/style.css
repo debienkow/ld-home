@@ -426,3 +426,9 @@ wc-pick { display: block; min-width: 0; }
 /* Tastatur: Platz unter dem Feld für Vorschläge */
 html.typing .sheet-body { padding-bottom: 55vh; }
 .sheet-body label, .sheet-body .field, .sheet-body .tag-input { scroll-margin-top: 12px; }
+
+/* Fällige geplante Ausgaben */
+.card.due, .item.due { box-shadow: inset 0 0 0 2px var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+.item.due { background: color-mix(in srgb, var(--warn) 14%, var(--card-2)); }
+.due-text { color: var(--warn); font-weight: 700; font-size: .88rem; margin: 4px 0; display: block; }
+.due-box { margin: 10px 0 12px; display: grid; gap: 6px; }

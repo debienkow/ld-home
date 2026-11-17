@@ -106,7 +106,12 @@ if (touchUi) {
     if (!sheet) return;
     document.documentElement.classList.add('typing');
     const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
-    setTimeout(() => { if (document.activeElement === t) anchor.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 320);
+    setTimeout(() => {
+      if (document.activeElement !== t) return;
+      const head = sheet.querySelector('.sheet-head');
+      const top = anchor.getBoundingClientRect().top - sheet.getBoundingClientRect().top - (head ? head.offsetHeight : 0) - 10;
+      sheet.scrollBy({ top, behavior: 'smooth' });
+    }, 320);
   });
   document.addEventListener('focusout', () => setTimeout(() => { if (!typable(document.activeElement)) document.documentElement.classList.remove('typing'); }, 150));
 }

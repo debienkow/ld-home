@@ -129,7 +129,7 @@ export function startStore(user) {
 
   unsubs.push(
     onSnapshot(collection(db, 'items'), (snap) => {
-      state.items = cleanItems(rows(snap));
+      state.items = cleanItems(rows(snap)).filter(mine);
       if (first.items && !snap.metadata.fromCache) {
         first.items = false;
         cleanupDone();

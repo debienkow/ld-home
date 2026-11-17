@@ -129,7 +129,7 @@ export function mountShopping(root) {
     const inner = el('div', { class: 'item' + (done ? ' done' : '') },
       el('button', { class: 'item-main', type: 'button', onclick: () => openItemSheet(item) },
         iconCircle(cat),
-        el('span', { class: 'item-name' }, item.name),
+        el('span', { class: 'item-name' }, `${item.owner ? '🔒 ' : ''}${item.name}`),
         item.qty && el('span', { class: 'pill' }, item.qty),
         store && el('span', { class: 'tag' }, store.name)),
       el('button', { class: 'check-btn' + (done ? ' on' : ''), type: 'button', 'aria-label': done ? `${item.name} wieder auf die Liste` : `${item.name} abhaken`, onclick: () => { setDone(item.id, !done); } }, icon(done ? 'undo' : 'check'))
@@ -165,14 +165,16 @@ export function mountShopping(root) {
       const store = el('select', null,
         el('option', { value: '' }, 'Alle Läden'),
         ...state.settings.stores.map((s) => el('option', { value: s.id, selected: s.id === item.store }, `Nur ${s.name}`)));
+      const priv = el('input', { type: 'checkbox', checked: !!item.owner });
       body.append(
         el('label', null, 'Menge', qty),
         el('label', null, 'Kategorie', cat),
         el('label', null, 'Laden', store),
+        el('label', { class: 'toggle-row' }, el('span', null, '🔒 Nur für mich anzeigen'), priv),
         el('div', { class: 'row between actions' },
           el('button', { class: 'btn danger', type: 'button', onclick: () => { close(); drop(item); } }, 'Löschen'),
           el('button', { class: 'btn primary', onclick: () => {
-            updateItem(item.id, { qty: qty.value.trim(), categoryId: cat.value, store: store.value || null });
+            updateItem(item.id, { qty: qty.value.trim(), categoryId: cat.value, store: store.value || null, owner: priv.checked ? state.user.uid : '' });
             if (cat.value !== item.categoryId) learn(item.name, cat.value);
             close();
           } }, 'Speichern'))

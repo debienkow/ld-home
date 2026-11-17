@@ -226,6 +226,7 @@ function renderOverview(root, view) {
   const rec = recurringSummary(recurring, config.salaries, todayStr().slice(0, 7));
   const plannedList = entries.filter((x) => x.planned);
   const plannedSum = plannedList.reduce((a, x) => a + x.cents, 0);
+  const plannedDue = plannedList.filter((x) => x.date <= todayStr()).length;
   const goRec = () => { view.sub = 'laufend'; view.q = ''; view.redraw(); };
 
   root.replaceChildren(el('div', { class: 'grid stats' },
@@ -243,9 +244,10 @@ function renderOverview(root, view) {
       el('p', { class: 'hint' }, 'Laufende Kosten pro Monat'),
       el('p', { class: 'big-number' }, fmt(rec.total)),
       rec.total ? el('p', null, `${nameOfKey(rec.transfer.from)} überweist ${nameOfKey(rec.transfer.to)} ${fmt(rec.transfer.cents)} monatlich`) : null),
-    ...(plannedList.length ? [el('section', { class: 'card note-card tap', role: 'button', tabindex: '0', onclick: () => { view.sub = 'geplant'; view.q = ''; view.redraw(); } },
+    ...(plannedList.length ? [el('section', { class: 'card tap' + (plannedDue ? ' due' : ''), role: 'button', tabindex: '0', onclick: () => { view.sub = 'geplant'; view.q = ''; view.redraw(); } },
       el('p', { class: 'hint' }, 'Geplante Ausgaben (noch nicht eingerechnet)'),
       el('p', { class: 'big-number' }, fmt(plannedSum)),
+      plannedDue ? el('p', { class: 'due-text' }, `⚠️ ${plannedDue === 1 ? '1 ist fällig' : `${plannedDue} sind fällig`}: verbuchen oder löschen`) : null,
       el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : [])),
     el('div', { class: 'grid top' },
     el('section', { class: 'card' },
@@ -299,16 +301,18 @@ function renderPlanned(root) {
   const list = state.fin.entries.filter((x) => x.planned).sort((a, b) => a.date.localeCompare(b.date));
   const total = list.reduce((a, x) => a + x.cents, 0);
   root.replaceChildren(
-    el('section', { class: 'card note-card' },
+    el('section', { class: 'card' },
       el('h2', null, 'Geplante Ausgaben'),
       el('p', { class: 'hint' }, 'Diese Ausgaben sind vorgemerkt, aber noch nicht abgebucht. Sie werden nicht in den Saldo eingerechnet und verschieben kein Geld, bis du sie als bezahlt verbuchst.'),
       list.length ? el('p', { class: 'big-number' }, fmt(total)) : null),
     ...(list.length ? list.map((x) => {
       const cat = catOf('expense', x.categoryId);
-      return el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
+      const due = x.date <= todayStr();
+      return el('button', { class: 'item fin-row' + (due ? ' due' : ''), type: 'button', onclick: () => openEntrySheet(x) },
         circle(cat),
         el('span', { class: 'grow fin-main' },
-          el('span', { class: 'item-name' }, x.title),
+          el('span', { class: 'item-name' }, `${due ? '⚠️ ' : ''}${x.title}`),
+          due ? el('span', { class: 'due-text' }, 'Fällig: verbuchen oder löschen') : null,
           el('span', { class: 'hint' }, `${new Date(x.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} · ${x.payer ? `Konto ${nameOfKey(x.payer)}` : PAYER_NONE}${x.noSplit ? ' · nicht geteilt' : ''}`)),
         el('span', { class: 'amount' }, fmt(x.cents)));
     }) : [el('p', { class: 'empty' }, 'Nichts geplant. Tippe unten auf +.')])
