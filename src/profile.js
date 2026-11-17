@@ -1,7 +1,7 @@
 /* Profil-Fenster: Bild, Name, Abmelden */
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
-import { confirmSheet, el, openSheet, shrinkImage } from './dom.js';
+import { confirmSheet, el, openSheet, shrinkImage, toast } from './dom.js';
 import { exportAll } from './dataio.js';
 import { usageCard } from './usage.js';
 import { saveProfile, saveProfilePhoto, state, uidOfKey, userName } from './store.js';
@@ -10,7 +10,7 @@ export function avatar(uid, size = '') {
   const photo = state.profiles[uid] && state.profiles[uid].photo;
   const name = userName(uid);
   return photo
-    ? el('img', { class: 'avatar ' + size, src: photo, alt: name })
+    ? el('img', { class: 'avatar ' + size, src: /^data:image\//.test(photo) ? photo : '', alt: name })
     : el('span', { class: 'avatar ' + size }, name.charAt(0));
 }
 
@@ -27,8 +27,11 @@ export function openProfile() {
       onchange: async (e) => {
         const f = e.target.files[0];
         if (!f) return;
-        await saveProfilePhoto(await shrinkImage(f, 200, 0.85));
-        holder.replaceChildren(avatar(u.uid, 'big'));
+        try {
+          await saveProfilePhoto(await shrinkImage(f, 200, 0.85));
+          holder.replaceChildren(avatar(u.uid, 'big'));
+        } catch (x) { if (!x || !x.reported) toast('Das Bild konnte nicht gelesen werden.', { bad: true }); }
+        e.target.value = '';
       }
     });
     const nameInput = el('input', { type: 'text', value: userName(u.uid), maxlength: '24' });
@@ -46,7 +49,7 @@ export function openProfile() {
         }
       }, 'Namen speichern'),
       usageCard(),
-      el('button', { class: 'btn ghost wide', onclick: exportAll }, 'Alle Daten sichern (Download)'),
+      el('button', { class: 'btn ghost wide', type: 'button', onclick: exportAll }, 'Alle Daten sichern (Download)'),
       el('button', {
         class: 'btn danger wide',
         onclick: async () => {

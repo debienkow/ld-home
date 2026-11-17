@@ -1,7 +1,7 @@
 /* Tab Einkauf */
-import { el, openSheet, swipeActions, uid } from './dom.js';
+import { el, icon, openSheet, swipeActions, toast, uid } from './dom.js';
 import {
-  addItem, catalogEntries, learn, norm, removeItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
+  addItem, catalogEntries, learn, norm, removeItem, restoreItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
 } from './store.js';
 
 let selectedStore = '';
@@ -114,9 +114,14 @@ export function mountShopping(root) {
     chips.replaceChildren(
       mk('', 'Alle'),
       ...state.settings.stores.map((s) => mk(s.id, s.name)),
-      el('button', { class: 'chip gear', type: 'button', onclick: openSettings, 'aria-label': 'Einkauf-Einstellungen' }, '⚙︎')
+      el('button', { class: 'chip gear', type: 'button', onclick: openSettings, 'aria-label': 'Einkauf-Einstellungen' }, icon('gear'))
     );
   }
+
+  const drop = (item) => {
+    removeItem(item.id);
+    toast(`„${item.name}“ gelöscht`, { action: 'Rückgängig', onAction: () => restoreItem(item) });
+  };
 
   function row(item, done) {
     const cat = catOf(item.categoryId);
@@ -127,9 +132,9 @@ export function mountShopping(root) {
         el('span', { class: 'item-name' }, item.name),
         item.qty && el('span', { class: 'pill' }, item.qty),
         store && el('span', { class: 'tag' }, store.name)),
-      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Bearbeiten', onclick: () => openItemSheet(item) }, '⋯')
+      el('button', { class: 'check-btn' + (done ? ' on' : ''), type: 'button', 'aria-label': done ? `${item.name} wieder auf die Liste` : `${item.name} abhaken`, onclick: () => { setDone(item.id, !done); } }, icon(done ? 'undo' : 'check'))
     );
-    return swipeActions(inner, { onLeft: () => removeItem(item.id), onRight: () => setDone(item.id, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
+    return swipeActions(inner, { onLeft: () => drop(item), onRight: () => setDone(item.id, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
   }
 
   function render() {
@@ -149,7 +154,7 @@ export function mountShopping(root) {
       if (!inCat.length) continue;
       blocks.push(...(showCatHeaders() ? [el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name)] : []), ...inCat.map((i) => row(i, false)));
     }
-    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, 'Die Liste ist leer. Tippe oben, was ihr braucht.')]));
+    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
     if (search.value.trim()) renderSuggest();
   }
 
@@ -164,8 +169,8 @@ export function mountShopping(root) {
         el('label', null, 'Menge', qty),
         el('label', null, 'Kategorie', cat),
         el('label', null, 'Laden', store),
-        el('div', { class: 'row between' },
-          el('button', { class: 'btn danger', onclick: () => { removeItem(item.id); close(); } }, 'Löschen'),
+        el('div', { class: 'row between actions' },
+          el('button', { class: 'btn danger', type: 'button', onclick: () => { close(); drop(item); } }, 'Löschen'),
           el('button', { class: 'btn primary', onclick: () => {
             updateItem(item.id, { qty: qty.value.trim(), categoryId: cat.value, store: store.value || null });
             if (cat.value !== item.categoryId) learn(item.name, cat.value);
@@ -238,10 +243,10 @@ function openSettings() {
     }
     draw();
     body.prepend(headerToggle);
-    body.append(area, el('div', { class: 'row end' },
-      el('button', { class: 'btn primary', onclick: async () => {
-        if (!cats.length) return;
-        await saveSettings({ categories: cats, stores });
+    body.append(area, el('div', { class: 'row end actions' },
+      el('button', { class: 'btn primary', type: 'button', onclick: async () => {
+        if (!cats.some((c) => c.name.trim())) return;
+        await saveSettings({ categories: cats.filter((c) => c.name.trim()), stores: stores.filter((s) => s.name.trim()) });
         close();
       } }, 'Speichern')));
   });

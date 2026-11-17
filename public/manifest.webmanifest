@@ -3,10 +3,10 @@
   "short_name": "WombiCoon",
   "description": "Haushalt, Einkauf, Termine und Dokumente für Dudi und Logi",
   "lang": "de",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#0a1530",
   "theme_color": "#0a1530",
   "icons": [

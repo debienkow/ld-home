@@ -1,5 +1,5 @@
 /* Tab Finanzen */
-import { confirmSheet, el, keepChips, openSheet, uid } from './dom.js';
+import { confirmSheet, el, icon, keepChips, openSheet, uid } from './dom.js';
 import {
   balance, currentCents, DEFAULT_PRESETS, fmt, logiShare, monthLabel, monthOf, nowTime, otherOf, parseMoney, recurringSummary, suggestCategory, todayStr, PEOPLE
 } from './finlogic.js';
@@ -160,7 +160,7 @@ export function openEntrySheet(entry, preset) {
       catBox, payerLabel, splitBox, info,
       el('label', null, 'Notiz', note), err,
       ...(entry && entry.planned ? [el('button', { class: 'btn primary wide', type: 'button', onclick: () => save(true) }, 'Jetzt als bezahlt verbuchen')] : []),
-      el('div', { class: 'row between' },
+      el('div', { class: 'row between actions' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Eintrag löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEntry(entry.id); close(); }
         } }, 'Löschen') : el('span'),
@@ -173,12 +173,12 @@ const barChart = (series, labels, colors) => {
   const max = Math.max(1, ...series.flat());
   const w = 100 / labels.length;
   const bars = labels.flatMap((_, i) => series.map((s, j) => {
-    const h = Math.round((s[i] / max) * 100);
+    const h = Math.max(0, Math.round(((Number(s[i]) || 0) / max) * 100));
     const bw = (w * 0.8) / series.length;
     return `<rect x="${i * w + w * 0.1 + j * bw}" y="${100 - h}" width="${bw - 0.4}" height="${h}" rx="0.8" fill="${colors[j]}"/>`;
   })).join('');
   const box = el('div', { class: 'chart' });
-  box.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${bars}</svg>`;
+  box.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Balkendiagramm">${bars}</svg>`;
   const axis = el('div', { class: 'chart-axis' }, ...labels.map((l) => el('span', null, l)));
   return el('div', null, box, axis);
 };
@@ -218,13 +218,13 @@ function renderOverview(root, view) {
   const plannedSum = plannedList.reduce((a, x) => a + x.cents, 0);
   const goRec = () => { view.sub = 'laufend'; view.q = ''; view.redraw(); };
 
-  root.replaceChildren(
+  root.replaceChildren(el('div', { class: 'grid stats' },
     el('section', { class: 'card saldo' },
       el('p', { class: 'hint' }, 'Saldo (ohne laufende Kosten)'),
       el('p', { class: 'saldo-text' }, saldo.text),
       saldo.cents ? el('p', { class: 'big-number' }, fmt(saldo.cents)) : null,
-      el('div', { class: 'row' },
-        saldo.cents ? el('button', { class: 'btn ghost', onclick: () => {
+      el('div', { class: 'row wrap' },
+        saldo.cents ? el('button', { class: 'btn ghost', type: 'button', onclick: () => {
           const b = balance(entries);
           openEntrySheet(null, { type: 'settlement', payer: b > 0 ? 'logi' : 'dudi', cents: Math.abs(b), title: 'Haushaltsausgleich' });
         } }, 'Ausgleich eintragen') : null,
@@ -236,7 +236,8 @@ function renderOverview(root, view) {
     ...(plannedList.length ? [el('section', { class: 'card note-card tap', role: 'button', tabindex: '0', onclick: () => { view.sub = 'geplant'; view.q = ''; view.redraw(); } },
       el('p', { class: 'hint' }, 'Geplante Ausgaben (noch nicht eingerechnet)'),
       el('p', { class: 'big-number' }, fmt(plannedSum)),
-      el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : []),
+      el('p', { class: 'hint' }, `${plannedList.length} vorgemerkt – siehe Reiter „Geplant“`))] : [])),
+    el('div', { class: 'grid top' },
     el('section', { class: 'card' },
       el('h2', null, /^\d{4}$/.test(cp) ? `Jahr ${cp}` : `Letzte ${cp} Monate`),
       chipRow(chartOpts, cp, (k) => { view.chartP = k; view.redraw(); }),
@@ -251,7 +252,7 @@ function renderOverview(root, view) {
           el('div', { class: 'grow' }, el('div', { class: 'cat-bar-head' }, el('span', null, cat.name), el('span', null, fmt(c))),
             el('div', { class: 'bar' }, el('div', { class: 'bar-fill', style: { width: `${Math.max(2, (c / maxCat) * 100)}%`, background: cat.color } }))));
       }) : [el('p', { class: 'hint' }, 'Keine Ausgaben in diesem Zeitraum.')]))
-  );
+  ));
 }
 
 function renderList(root, type, view) {
@@ -409,7 +410,7 @@ function openRecurringSheet(rec) {
           drawV();
         } }, '+ Preis hinzufügen'),
       err,
-      el('div', { class: 'row between' },
+      el('div', { class: 'row between actions' },
         rec ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Posten löschen?', `„${r.title}“ wirklich löschen?`, 'Löschen')) { await removeRecurring(rec.id); close(); }
         } }, 'Löschen') : el('span'),
@@ -446,7 +447,7 @@ function openFinSettings() {
           el('input', { class: 'grow', value: r.match, oninput: (e) => (r.match = e.target.value) }),
           el('select', { onchange: (e) => (r.categoryId = e.target.value) }, ...cats.map((c) => el('option', { value: c.id, selected: c.id === r.categoryId }, `${c.icon} ${c.name}`))),
           el('button', { class: 'icon-btn', type: 'button', onclick: () => { rules.splice(i, 1); draw(); } }, '🗑'))),
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => { rules.push({ match: '', categoryId: cats[0].id }); draw(); } }, '+ Regel'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { if (cats.length) { rules.push({ match: '', categoryId: cats[0].id }); draw(); } } }, '+ Regel'),
         el('h3', null, 'Schnellauswahl'),
         el('p', { class: 'hint' }, 'Diese Chips erscheinen beim Anlegen einer Ausgabe: ein Tipp setzt Titel und Kategorie.'),
         ...quick.map((q, i) => el('div', { class: 'edit-row' },
@@ -462,7 +463,8 @@ function openFinSettings() {
     } });
     body.append(area,
       el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => {
-        await saveFinConfig({ categories: cats, rules: rules.filter((r) => r.match.trim()), presets: quick.filter((q) => q.title.trim()) });
+        if (!cats.some((c) => c.name.trim())) return;
+        await saveFinConfig({ categories: cats.filter((c) => c.name.trim()), rules: rules.filter((r) => r.match.trim()), presets: quick.filter((q) => q.title.trim()) });
         close();
       } }, 'Speichern')),
       el('h3', null, 'Daten importieren'),
@@ -477,7 +479,7 @@ export function mountFinance(root) {
   const toolbar = el('div', { class: 'search-wrap' });
   const content = el('div');
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Suchen …', oninput: (e) => { view.q = e.target.value; drawContent(); } });
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { date: addDays(todayStr(), 1) } : null) }, '+');
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Eintrag', onclick: () => openEntrySheet(null, view.sub === 'einnahmen' ? { type: 'income' } : view.sub === 'geplant' ? { date: addDays(todayStr(), 1) } : null) }, icon('plus'));
 
   const SUBS = [['uebersicht', 'Übersicht'], ['ausgaben', 'Ausgaben'], ['einnahmen', 'Einnahmen'], ['geplant', 'Geplant'], ['laufend', 'Laufende Kosten']];
   function drawContent() {
@@ -490,13 +492,14 @@ export function mountFinance(root) {
   function draw() { keepChips(drawNow); }
   function drawNow() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; view.q = ''; search.value = ''; view.monthsShown = 3; draw(); } }, l)),
-      el('button', { class: 'chip gear', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, '⚙︎'));
+      el('button', { class: 'chip gear', type: 'button', onclick: openFinSettings, 'aria-label': 'Einstellungen' }, icon('gear')));
     if (toolSub !== view.sub) {
       toolSub = view.sub;
       toolbar.replaceChildren(...(view.sub === 'ausgaben' || view.sub === 'einnahmen' ? [search] : []));
       toolbar.classList.toggle('hidden', !toolbar.children.length);
     }
     fab.classList.toggle('hidden', view.sub === 'laufend');
+    root.classList.toggle('wide', view.sub === 'uebersicht');
     drawContent();
   }
   view.redraw = draw;

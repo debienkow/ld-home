@@ -33,7 +33,7 @@ export function compress(src, maxSize, quality = 0.72) {
       if (typeof src !== 'string') URL.revokeObjectURL(url);
       resolve(out);
     };
-    img.onerror = reject;
+    img.onerror = () => { if (typeof src !== 'string') URL.revokeObjectURL(url); reject(new Error('Bild nicht lesbar')); };
     img.src = url;
   });
 }
@@ -41,7 +41,8 @@ export function compress(src, maxSize, quality = 0.72) {
 /* Texterkennung im Browser (Tesseract.js, wird erst bei Bedarf geladen) */
 export async function recognize(dataUrls, onProgress) {
   const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('deu+eng');
+  const dir = new URL(`${import.meta.env.BASE_URL}${import.meta.env.MODE === 'demo' ? '../' : ''}tess/`, location.href).href.replace(/\/$/, '');
+  const worker = await createWorker('deu+eng', 1, import.meta.env.PROD ? { workerPath: `${dir}/worker.min.js`, corePath: dir, langPath: dir, workerBlobURL: false } : {});
   try {
     let text = '';
     for (let i = 0; i < dataUrls.length; i++) {
@@ -93,7 +94,7 @@ export async function imagesToPdf(dataUrls) {
   let len = 0;
   const push = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; chunks.push(b); len += b.length; };
   const obj = (n, body) => { offsets[n] = len; push(`${n} 0 obj\n`); push(body); push('\nendobj\n'); };
-  const dims = await Promise.all(dataUrls.map((u) => new Promise((res) => { const i = new Image(); i.onload = () => res([i.width, i.height]); i.src = u; })));
+  const dims = await Promise.all(dataUrls.map((u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res([i.width, i.height]); i.onerror = () => rej(new Error('Bild nicht lesbar')); i.src = u; })));
   push('%PDF-1.4\n');
   const kids = dataUrls.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');

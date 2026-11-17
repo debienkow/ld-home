@@ -11,7 +11,7 @@ const labelOf = (p) => {
 export const navLink = (lat, lon) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
 export function placeField(value, geo, onChange) {
-  let cur = { text: value || '', lat: geo && geo.lat, lon: geo && geo.lon };
+  let cur = { text: value || '', lat: geo && geo.lat != null ? Number(geo.lat) : null, lon: geo && geo.lon != null ? Number(geo.lon) : null };
   const input = el('input', { type: 'text', value: cur.text, placeholder: 'Ort oder Adresse (optional)', autocomplete: 'off' });
   const list = el('div', { class: 'suggest hidden' });
   const map = el('div', { class: 'map-box hidden' });
@@ -19,11 +19,11 @@ export function placeField(value, geo, onChange) {
   let seq = 0;
 
   const drawMap = () => {
-    if (cur.lat == null) return map.classList.add('hidden');
+    if (!Number.isFinite(cur.lat) || !Number.isFinite(cur.lon)) return map.classList.add('hidden');
     const d = 0.004;
     const bbox = [cur.lon - d, cur.lat - d, cur.lon + d, cur.lat + d].join(',');
     map.replaceChildren(
-      el('iframe', { src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${cur.lat},${cur.lon}`, loading: 'lazy', title: 'Karte', tabindex: '-1' }),
+      el('iframe', { referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin', src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${cur.lat},${cur.lon}`, loading: 'lazy', title: 'Karte', tabindex: '-1' }),
       el('a', { class: 'map-link', href: navLink(cur.lat, cur.lon), target: '_blank', rel: 'noopener' }, '🧭 Navigation starten'));
     map.classList.remove('hidden');
   };
@@ -38,12 +38,12 @@ export function placeField(value, geo, onChange) {
     timer = setTimeout(async () => {
       const my = ++seq;
       try {
-        const r = await fetch(`https://photon.komoot.io/api/?lang=de&limit=5&q=${encodeURIComponent(q)}`);
+        const r = await fetch(`https://photon.komoot.io/api/?lang=de&limit=5&q=${encodeURIComponent(q)}`, { referrerPolicy: 'no-referrer' });
         const data = await r.json();
         if (my !== seq) return;
         const hits = (data.features || []).filter((f) => f.geometry && f.geometry.coordinates);
         list.replaceChildren(...hits.map((f) => el('button', { type: 'button', class: 'suggest-row', onclick: () => {
-          const [lon, lat] = f.geometry.coordinates;
+          const [lon, lat] = f.geometry.coordinates.map(Number);
           cur = { text: labelOf(f), lat, lon };
           input.value = cur.text;
           list.classList.add('hidden');

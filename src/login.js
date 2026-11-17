@@ -13,7 +13,7 @@ const MESSAGES = {
 const msg = (e) => MESSAGES[e.code] || 'Das hat nicht geklappt. Bitte nochmal versuchen.';
 
 export function renderLogin(root) {
-  const email = el('input', { type: 'email', placeholder: 'E-Mail', autocomplete: 'username', required: true });
+  const email = el('input', { type: 'email', placeholder: 'E-Mail', autocomplete: 'username', autocapitalize: 'off', spellcheck: 'false', required: true });
   const pw = el('input', { type: 'password', placeholder: 'Passwort', autocomplete: 'current-password' });
   const info = el('p', { class: 'form-info', role: 'status' });
   const submit = el('button', { class: 'btn primary wide', type: 'submit' }, 'Anmelden');
@@ -41,6 +41,7 @@ export function renderLogin(root) {
     },
     el('img', { class: 'login-logo', src: import.meta.env.BASE_URL + 'icon.svg', alt: 'WombiCoon' }),
     el('h1', null, 'WombiCoon'),
+    el('p', { class: 'hint' }, 'Haushalt, Einkauf, Termine und Dokumente'),
     el('label', null, 'E-Mail', email),
     el('label', null, 'Passwort', pw),
     info,

@@ -1,5 +1,5 @@
 /* Tab DMS: Dokumente fotografieren, ablegen, durchsuchen */
-import { confirmSheet, el, keepChips, openSheet, uid } from './dom.js';
+import { confirmSheet, downloadBlob, el, icon, keepChips, openSheet, uid } from './dom.js';
 import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages, recognize } from './dmslogic.js';
 import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
@@ -25,6 +25,7 @@ function openCamera(onShot, onDone) {
     const msg = el('p', { class: 'form-info bad' });
     let n = 0;
     let stream = null;
+    let shut = false;
     const shoot = el('button', { class: 'btn primary', type: 'button', onclick: () => {
       if (!video.videoWidth) return;
       const c = document.createElement('canvas');
@@ -38,14 +39,17 @@ function openCamera(onShot, onDone) {
     body.append(video, count, msg, el('div', { class: 'row' }, shoot, el('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Fertig')));
     (async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('keine Kamera');
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false });
+        if (shut) return stream.getTracks().forEach((t) => t.stop());
         video.srcObject = stream;
       } catch (e) { msg.textContent = 'Kein Zugriff auf die Kamera. Bitte Zugriff erlauben oder „Einzelfoto“ nutzen.'; shoot.disabled = true; }
     })();
-    camStop = () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
+    camStop = () => { shut = true; if (stream) stream.getTracks().forEach((t) => t.stop()); };
   }, () => { camStop(); onDone(); });
 }
 let camStop = () => {};
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') camStop(); });
 
 /* Dokument anlegen oder bearbeiten */
 export function openDocSheet(doc) {
@@ -65,6 +69,7 @@ export function openDocSheet(doc) {
     const tags = el('input', { type: 'text', value: doc ? (doc.tags || []).join(', ') : '', placeholder: 'Stichworte, durch Komma getrennt' });
     const date = el('input', { type: 'date', value: doc ? doc.date : todayIso() });
     const note = el('input', { type: 'text', value: doc ? doc.note || '' : '', placeholder: 'Notiz (optional)' });
+    let loading = !!doc;
     const text = el('textarea', { class: 'ocr', rows: '6', placeholder: 'Erkannter Text (für die Suche)' }, ocrText);
     text.addEventListener('input', () => (ocrText = text.value));
 
@@ -116,6 +121,7 @@ export function openDocSheet(doc) {
 
     const save = async () => {
       if (busy) return (err.textContent = 'Bitte kurz warten, die Texterkennung läuft noch.');
+      if (loading) return (err.textContent = 'Bitte kurz warten, die Seiten werden noch geladen.');
       if (!pages.length) return (err.textContent = 'Bitte mindestens eine Seite hinzufügen.');
       if (!title.value.trim()) return (err.textContent = 'Bitte einen Titel eingeben.');
       err.textContent = '';
@@ -126,7 +132,7 @@ export function openDocSheet(doc) {
       try {
         await saveDms(doc && doc.id, {
           title: title.value.trim(), categoryId: cat.value, tags: tagsOf(tags.value), date: date.value || todayIso(),
-          note: note.value.trim(), text: text.value, pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
+          note: note.value.trim(), text: text.value.slice(0, 400000), pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
       } catch (e) { status.textContent = ''; err.textContent = 'Speichern hat nicht geklappt. Internet prüfen und nochmal versuchen.'; }
@@ -147,15 +153,10 @@ export function openDocSheet(doc) {
       el('button', { class: 'btn ghost', type: 'button', onclick: () => runOcr(false) }, 'Text neu erkennen'),
       ...(doc ? [el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
         if (!pages.length) return;
-        const blob = await imagesToPdf(pages.map((p) => p.img));
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${(title.value || 'dokument').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'dokument'}.pdf`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+        downloadBlob(await imagesToPdf(pages.map((p) => p.img)), `${(title.value || 'dokument').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'dokument'}.pdf`);
       } }, '📥 Als PDF herunterladen')] : []),
       err,
-      el('div', { class: 'row between' },
+      el('div', { class: 'row between actions' },
         doc ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
           if (await confirmSheet('Dokument löschen?', `„${doc.title}“ mit allen Seiten wirklich löschen?`, 'Löschen')) { await removeDms(doc.id); close(); }
         } }, 'Löschen') : el('span'),
@@ -163,7 +164,7 @@ export function openDocSheet(doc) {
 
     if (doc) {
       status.textContent = 'Seiten werden geladen …';
-      loadPages(doc.id).then((p) => { pages = p.map((x) => ({ ...x, isNew: false })); status.textContent = ''; drawStrip(); }).catch(() => (status.textContent = 'Seiten konnten nicht geladen werden.'));
+      loadPages(doc.id).then((p) => { pages = [...p.map((x) => ({ ...x, isNew: false })), ...pages]; loading = false; status.textContent = ''; drawStrip(); }).catch(() => (status.textContent = 'Seiten konnten nicht geladen werden (offline?). Bitte später erneut öffnen.'));
     }
   });
 }
@@ -180,7 +181,7 @@ function openDmsSettings() {
         el('button', { class: 'icon-btn', type: 'button', onclick: () => { if (list.length > 1) { list.splice(i, 1); draw(); } } }, '🗑'))),
       el('button', { class: 'btn ghost', type: 'button', onclick: () => { list.push({ id: 'k' + uid(), name: 'Neu', icon: '📄', color: '#9aa7c2' }); draw(); } }, '+ Kategorie'));
     draw();
-    body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => { await saveDmsConfig({ categories: list }); close(); } }, 'Speichern')));
+    body.append(area, el('div', { class: 'row end actions' }, el('button', { class: 'btn primary', type: 'button', onclick: async () => { await saveDmsConfig({ categories: list.filter((c) => c.name.trim()) }); close(); } }, 'Speichern')));
   });
 }
 
@@ -198,14 +199,14 @@ export function mountDms(root) {
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Titel, Stichwort oder Text suchen …', oninput: (e) => { view.q = e.target.value; drawList(); } });
   const chips = el('div', { class: 'chips' });
   const list = el('div');
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neues Dokument', onclick: () => openDocSheet() }, '+');
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Neues Dokument', onclick: () => openDocSheet() }, icon('plus'));
 
   function drawChips() { keepChips(drawChipsNow); }
   function drawChipsNow() {
     chips.replaceChildren(
       el('button', { class: 'chip' + (!view.cat ? ' active' : ''), onclick: () => { view.cat = ''; drawChips(); drawList(); } }, 'Alle'),
       ...cats().map((c) => el('button', { class: 'chip' + (view.cat === c.id ? ' active' : ''), onclick: () => { view.cat = c.id; drawChips(); drawList(); } }, `${c.icon} ${c.name}`)),
-      el('button', { class: 'chip gear', onclick: openDmsSettings, 'aria-label': 'Kategorien' }, '⚙︎'));
+      el('button', { class: 'chip gear', type: 'button', onclick: openDmsSettings, 'aria-label': 'Kategorien' }, icon('gear')));
   }
   function drawList() {
     const q = view.q.trim().toLowerCase();
@@ -216,7 +217,7 @@ export function mountDms(root) {
     list.replaceChildren(...(docs.length ? docs.map(docRow) : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
   }
   const usage = el('div');
-  root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, list, usage, fab);
+  root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, el('div', { class: 'doc-list' }, list), usage, fab);
   drawChips(); drawList();
   return subscribe(() => { drawChips(); drawList(); });
 }

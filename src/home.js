@@ -1,15 +1,18 @@
 /* Tab Home */
-import { el } from './dom.js';
-import { state, subscribe } from './store.js';
+import { el, icon } from './dom.js';
+import { myKey, nameOfKey, state, subscribe } from './store.js';
 import { fmt, todayStr } from './finlogic.js';
 import { openEntrySheet, saldoText } from './finance.js';
 import { docRow, openDocSheet, recentDocs } from './dms.js';
-import { myKey, nameOfKey } from './store.js';
 import { eventRow, needsAnswer, openEventSheet, upcoming } from './events.js';
 
-const soon = (title, icon, text) =>
-  el('section', { class: 'card muted' },
-    el('h2', null, `${icon} ${title}`), el('p', null, text));
+const dateDe = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE');
+const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Hallo' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Moin' : 'Guten Abend'; };
+
+/* Kartenkopf: Titel führt in den Bereich */
+const head = (id, title, go) =>
+  el('button', { class: 'card-head', type: 'button', onclick: () => go(id) },
+    icon(id), el('h2', { class: 'grow' }, title), el('span', { class: 'more' }, 'Öffnen ›'));
 
 export function mountHome(root, go) {
   function render() {
@@ -21,41 +24,45 @@ export function mountHome(root, go) {
       if (s) byStore[s.name] = (byStore[s.name] || 0) + 1;
     }
     const tags = Object.entries(byStore).map(([n, c]) => el('span', { class: 'tag big' }, `${n}: ${c}`));
+    const due = state.fin.entries.filter((x) => x.planned && x.date <= todayStr());
+    const saldo = saldoText();
+    const waiting = upcoming().filter(needsAnswer).length;
+    const next = upcoming(3);
+    const docs = recentDocs(3);
 
     root.replaceChildren(
-      el('h1', { class: 'greeting' }, `Moin ${nameOfKey(myKey())} 👋`),
-      el('section', { class: 'card tap', onclick: () => go('einkauf') },
-        el('h2', null, '🛒 Einkaufsliste'),
-        el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
-        tags.length ? el('div', { class: 'tags' }, ...tags) : null,
-        !open.length ? el('p', { class: 'hint' }, 'Nichts auf der Liste.') : null),
-      ...(state.fin.entries.filter((x) => x.planned && x.date <= todayStr()).length ? [el('section', { class: 'card note-card' },
-        el('h2', null, '⏰ Geplante Ausgabe fällig'),
-        el('p', { class: 'hint' }, 'Das Datum ist erreicht. Trag die Ausgabe jetzt final ein, wenn sie wirklich bezahlt wurde, oder lösche sie.'),
-        ...state.fin.entries.filter((x) => x.planned && x.date <= todayStr()).map((x) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
-          el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${new Date(x.date + 'T00:00').toLocaleDateString('de-DE')}`)),
+      el('div', { class: 'greet' },
+        el('h1', { class: 'greeting' }, `${greeting()}, ${nameOfKey(myKey())} 👋`),
+        el('p', { class: 'hint' }, new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
+      ...(due.length ? [el('section', { class: 'card note-card' },
+        el('h2', null, due.length === 1 ? 'Geplante Ausgabe fällig' : `${due.length} geplante Ausgaben fällig`),
+        el('p', { class: 'hint' }, 'Das Datum ist erreicht. Verbuche die Ausgabe, wenn sie wirklich bezahlt wurde, oder lösche sie.'),
+        ...due.map((x) => el('button', { class: 'item fin-row', type: 'button', onclick: () => openEntrySheet(x) },
+          el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${dateDe(x.date)}`)),
           el('span', { class: 'amount' }, fmt(x.cents)))))] : []),
-      el('section', { class: 'card' },
-        el('h2', { class: 'tap', onclick: () => go('finanzen') }, '💶 Finanzen'),
-        el('p', { class: 'saldo-text' }, saldoText().text),
-        saldoText().cents ? el('p', { class: 'big-number' }, fmt(saldoText().cents)) : null,
-        el('button', { class: 'btn primary wide', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
-      el('section', { class: 'card' },
-        el('h2', { class: 'tap', onclick: () => go('events') }, '📅 Nächste Events'),
-        ...(upcoming().filter(needsAnswer).length ? [el('p', { class: 'hint' }, `${upcoming().filter(needsAnswer).length} Einladung(en) warten auf deine Antwort`)] : []),
-        ...(upcoming(3).length ? upcoming(3).map((e) => eventRow(e)) : [el('p', { class: 'hint' }, 'Keine anstehenden Termine.')]),
-        el('button', { class: 'btn primary wide', onclick: () => openEventSheet() }, '+ Neuer Termin')),
-      el('section', { class: 'card' },
-        el('h2', { class: 'tap', onclick: () => go('dms') }, '🗂 Neuste Dokumente'),
-        ...(recentDocs(3).length ? recentDocs(3).map(docRow) : [el('p', { class: 'hint' }, 'Noch keine Dokumente.')]),
-        el('button', { class: 'btn primary wide', onclick: () => openDocSheet() }, '📷 Dokument aufnehmen'))
+      el('div', { class: 'grid' },
+        el('section', { class: 'card' },
+          head('einkauf', 'Einkaufsliste', go),
+          el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
+          tags.length ? el('div', { class: 'tags' }, ...tags) : null,
+          !open.length ? el('p', { class: 'hint' }, 'Nichts auf der Liste.') : null,
+          el('button', { class: 'btn soft wide', type: 'button', onclick: () => go('einkauf') }, open.length ? 'Liste öffnen' : '+ Artikel hinzufügen')),
+        el('section', { class: 'card' },
+          head('finanzen', 'Finanzen', go),
+          el('p', { class: 'saldo-text' }, saldo.text),
+          saldo.cents ? el('p', { class: 'big-number' }, fmt(saldo.cents)) : null,
+          el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
+        el('section', { class: 'card' },
+          head('events', 'Nächste Events', go),
+          waiting ? el('p', { class: 'hint' }, waiting === 1 ? '1 Einladung wartet auf deine Antwort' : `${waiting} Einladungen warten auf deine Antwort`) : null,
+          el('div', { class: 'card-list' }, ...(next.length ? next.map((e) => eventRow(e)) : [el('p', { class: 'hint' }, 'Keine anstehenden Termine.')])),
+          el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEventSheet() }, '+ Neuer Termin')),
+        el('section', { class: 'card' },
+          head('dms', 'Neueste Dokumente', go),
+          el('div', { class: 'card-list' }, ...(docs.length ? docs.map(docRow) : [el('p', { class: 'hint' }, 'Noch keine Dokumente.')])),
+          el('button', { class: 'btn primary wide', type: 'button', onclick: () => openDocSheet() }, '📷 Dokument aufnehmen')))
     );
   }
   render();
   return subscribe(render);
-}
-
-export function mountSoon(root, title, text) {
-  root.replaceChildren(el('section', { class: 'card muted' }, el('h2', null, title), el('p', null, text)));
-  return () => {};
 }

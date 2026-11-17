@@ -1,4 +1,4 @@
-/* LD Home: Google-Kalender-Sync v1.2 (17.11.2026) */
+/* LD Home: Google-Kalender-Sync v1.3 (17.11.2026) */
 const TOKEN = 'HIER-EIN-GEHEIMWORT-EINTRAGEN';
 const CAL_NAME = 'LD Home';
 const TZ = 'Europe/Berlin';
@@ -25,7 +25,8 @@ function ev_(e) {
   return {
     gid: e.getId(), title: e.getTitle(), allDay, start, end: end < start ? start : end,
     startTime: allDay ? '' : fmt_(s, 'HH:mm'), endTime: allDay ? '' : fmt_(en, 'HH:mm'),
-    location: e.getLocation() || '', note: e.getDescription() || '', updated: e.getLastUpdated().getTime()
+    location: e.getLocation() || '', note: e.getDescription() || '', updated: e.getLastUpdated().getTime(),
+    recurring: e.isRecurringEvent()
   };
 }
 
@@ -38,8 +39,17 @@ function apply_(e, p) {
 }
 
 function doPost(req) {
+  try {
+    return run_(req);
+  } catch (err) {
+    return out_({ error: 'skript: ' + String(err && err.message || err).slice(0, 120) });
+  }
+}
+
+function run_(req) {
   const r = JSON.parse(req.postData.contents);
-  if (r.token !== TOKEN) return out_({ error: 'token' });
+  if (TOKEN.length < 16 || TOKEN.indexOf('HIER-') === 0) return out_({ error: 'geheimwort im skript fehlt oder ist zu kurz' });
+  if (typeof r.token !== 'string' || r.token !== TOKEN) return out_({ error: 'token' });
   const cal = cal_();
   if (r.action === 'ping') return out_({ ok: true, calendar: CAL_NAME });
   if (r.action === 'list') {
@@ -55,6 +65,7 @@ function doPost(req) {
   if (r.action === 'upsert') {
     const p = r.event;
     let e = p.gid ? CalendarApp.getEventById(p.gid) : null;
+    if (e && e.isRecurringEvent()) return out_({ error: 'serie' });
     if (!e) {
       e = p.allDay
         ? cal.createAllDayEvent(p.title, d_(p.start), d_(plus_(p.end || p.start, 1)))
@@ -65,6 +76,7 @@ function doPost(req) {
   }
   if (r.action === 'delete') {
     const e = CalendarApp.getEventById(r.gid);
+    if (e && e.isRecurringEvent()) return out_({ error: 'serie' });
     if (e) e.deleteEvent();
     return out_({ ok: true });
   }

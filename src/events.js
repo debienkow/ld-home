@@ -1,13 +1,13 @@
 /* Tab Events */
-import { confirmSheet, el, openSheet, keepChips, swipeDelete, uid } from './dom.js';
+import { confirmSheet, el, icon, openSheet, keepChips, swipeDelete, toast, uid } from './dom.js';
 import {
   addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, isoOf, parseIso, rangeText, RSVP, todayIso
 } from './evlogic.js';
-import { myKey, nameOfKey, removeEvent, removeIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
+import { myKey, nameOfKey, removeEvent, removeIdea, restoreIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
 import { keyAvatar } from './profile.js';
 import { placeField } from './places.js';
-import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld } from './gcal.js';
+import { gcalReady, gcalPing, pushDelete, pushEvent, saveGcalConfig, syncNow, gcalConfig, importOld, validGcalUrl } from './gcal.js';
 
 const cats = () => state.ev.config.categories || DEFAULT_EVENT_CATEGORIES;
 const catOf = (id) => cats().find((c) => c.id === id) || cats()[cats().length - 1];
@@ -45,22 +45,24 @@ export function openEventSheet(event, preset) {
     const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: c.id === e.categoryId }, `${c.icon} ${c.name}`)));
     const allDay = el('input', { type: 'checkbox', checked: !!e.allDay });
     const start = el('input', { type: 'date', value: e.start });
-    const end = el('input', { type: 'date', value: endOf(e) });
+    const end = el('input', { type: 'date', value: endOf(e), min: e.start });
     const startTime = el('input', { type: 'time', value: e.startTime || '' });
     const endTime = el('input', { type: 'time', value: e.endTime || '' });
     let place = { text: e.location || '', lat: e.lat ?? null, lon: e.lon ?? null };
     const locField = placeField(place.text, place, (p) => (place = p));
-    const note = el('input', { type: 'text', value: e.note || '', placeholder: 'Notiz (optional)' });
+    const note = el('textarea', { rows: '2', placeholder: 'Notiz (optional)' }, e.note || '');
     const important = el('input', { type: 'checkbox', checked: !!e.important });
     const who = Object.fromEntries(PEOPLE.map((k) => [k, el('input', { type: 'checkbox', checked: parts(e).includes(k) })]));
     const timesRow = el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Beginn (Uhrzeit)', startTime), el('label', { class: 'grow' }, 'Ende (Uhrzeit)', endTime));
     const err = el('p', { class: 'form-info bad' });
 
+    const timeHint = el('p', { class: 'hint' }, 'Ohne Beginn-Uhrzeit wird der Termin als ganztägig gespeichert.');
     const refresh = () => {
       timesRow.classList.toggle('hidden', allDay.checked);
+      timeHint.classList.toggle('hidden', allDay.checked || !!startTime.value);
     };
-    [allDay, start, end].forEach((i) => i.addEventListener('change', refresh));
-    start.addEventListener('change', () => { if (!end.value || end.value < start.value) end.value = start.value; });
+    [allDay, start, end, startTime].forEach((i) => i.addEventListener('change', refresh));
+    start.addEventListener('change', () => { end.min = start.value; if (!end.value || end.value < start.value) end.value = start.value; });
     refresh();
 
     const rsvpRow = event && parts(e).includes(me)
@@ -79,32 +81,34 @@ export function openEventSheet(event, preset) {
       const rsvp = { ...(e.rsvp || {}) };
       for (const k of PEOPLE) if (!participants.includes(k)) delete rsvp[k];
       if (!event && participants.includes(me)) rsvp[me] = 'yes';
+      const whole = allDay.checked || !startTime.value;
       const payload = {
-        title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: allDay.checked,
-        startTime: allDay.checked ? '' : startTime.value, endTime: allDay.checked ? '' : endTime.value,
+        title: title.value.trim(), categoryId: cat.value, start: start.value, end: endDate, allDay: whole,
+        startTime: whole ? '' : startTime.value, endTime: whole ? '' : endTime.value,
         location: place.text.trim(), lat: place.lat, lon: place.lon, note: note.value.trim(), important: important.checked,
         participants, vacation: (e.vacation || []).filter((k) => participants.includes(k)), rsvp
       };
       const savedId = await saveEvent(event && event.id, payload);
-      pushEvent(savedId, { ...payload, gid: event && event.gid });
+      pushEvent(savedId, { ...payload, gid: event && event.gid, gser: event && event.gser });
       if (preset && preset.fromIdea) await removeIdea(preset.fromIdea);
       close();
     };
 
     body.append(
       ...(rsvpRow ? [el('p', { class: 'hint' }, 'Meine Antwort'), rsvpRow] : []),
+      ...(e.gser ? [el('p', { class: 'hint note-line' }, 'Serientermin aus dem Google Kalender: Titel, Zeit und Ort bitte dort ändern. Kategorie, Antwort und „Wichtig“ gelten nur hier.')] : []),
       el('label', null, 'Titel', title),
       el('label', null, 'Kategorie', cat),
       el('label', { class: 'toggle-row' }, el('span', null, 'Ganztägig'), allDay),
       el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Von', start), el('label', { class: 'grow' }, 'Bis', end)),
-      timesRow, locField, el('label', null, 'Notiz', note),
+      timesRow, timeHint, locField, el('label', null, 'Notiz', note),
       el('label', { class: 'toggle-row' }, el('span', null, '⭐ Wichtig'), important),
       el('h3', null, 'Wer ist eingeladen?'),
       ...PEOPLE.map((k) => el('label', { class: 'toggle-row' }, el('span', { class: 'who' }, keyAvatar(k, 'mini'), nameOfKey(k)), who[k])),
       err,
-      el('div', { class: 'row between' },
-        event ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?`, 'Löschen')) { await removeEvent(event.id); pushDelete(event.gid); close(); }
+      el('div', { class: 'row between actions' },
+        event && !e.gser ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
+          if (await confirmSheet('Termin löschen?', `„${e.title}“ wirklich löschen?${event.gid ? ' Er wird auch im Google Kalender gelöscht.' : ''}`, 'Löschen')) { await removeEvent(event.id); pushDelete(event.gid); close(); }
         } }, 'Löschen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: save }, 'Speichern'))
     );
@@ -119,7 +123,7 @@ function openIdeaSheet(idea) {
     body.append(
       el('label', null, 'Idee', title), el('label', null, 'Notiz', note),
       ...(idea ? [el('button', { class: 'btn ghost wide', type: 'button', onclick: () => { close(); openEventSheet(null, { title: idea.title, note: idea.note || '', fromIdea: idea.id }); } }, '📅 In Termin umwandeln')] : []),
-      el('div', { class: 'row between' },
+      el('div', { class: 'row between actions' },
         idea ? el('button', { class: 'btn danger', type: 'button', onclick: async () => { await removeIdea(idea.id); close(); } }, 'Löschen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: async () => {
           if (!title.value.trim()) return;
@@ -144,14 +148,17 @@ function openEvSettings() {
     draw();
     const g = gcalConfig() || {};
     const url = el('input', { type: 'text', value: g.url || '', placeholder: 'https://script.google.com/macros/s/…/exec', autocomplete: 'off' });
-    const token = el('input', { type: 'text', value: g.token || '', placeholder: 'Geheimwort aus dem Skript', autocomplete: 'off' });
+    const token = el('input', { type: 'password', value: g.token || '', placeholder: 'Geheimwort aus dem Skript', autocomplete: 'off' });
     const gmsg = el('p', { class: 'hint' }, gcalReady() ? 'Verbunden. Der Abgleich läuft beim Öffnen und alle 5 Minuten.' : 'Noch nicht verbunden.');
-    const saveG = async () => { await saveGcalConfig({ url: url.value.trim(), token: token.value.trim() }); };
-    body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', onclick: async () => { await saveEvConfig({ categories: list }); close(); } }, 'Kategorien speichern')),
+    const saveG = async () => {
+      if (!validGcalUrl(url.value)) { gmsg.textContent = 'Die Adresse muss mit https://script.google.com/macros/s/ beginnen und auf /exec enden.'; throw Object.assign(new Error('url'), { reported: true }); }
+      await saveGcalConfig({ url: url.value.trim(), token: token.value.trim() });
+    };
+    body.append(area, el('div', { class: 'row end' }, el('button', { class: 'btn primary', type: 'button', onclick: async () => { await saveEvConfig({ categories: list.filter((c) => c.name.trim()) }); close(); } }, 'Kategorien speichern')),
       el('h3', null, 'Google Kalender'),
       el('p', { class: 'hint' }, 'Verbindet eure Termine mit dem Google-Kalender „LD Home“. Einrichtung: siehe Anleitung im Projektordner.'),
       el('label', null, 'Web-App-URL', url), el('label', null, 'Geheimwort', token), gmsg,
-      el('div', { class: 'row' },
+      el('div', { class: 'row wrap' },
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           await saveG(); gmsg.textContent = 'Teste …';
           try { await new Promise((r) => setTimeout(r, 600)); await gcalPing(); gmsg.textContent = 'Verbindung funktioniert.'; } catch (e) { gmsg.textContent = 'Verbindung fehlgeschlagen: URL und Geheimwort prüfen.'; }
@@ -159,8 +166,9 @@ function openEvSettings() {
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           await saveG(); gmsg.textContent = 'Gleiche ab …';
           await new Promise((r) => setTimeout(r, 600));
-          const r = await syncNow();
-          gmsg.textContent = r.ok ? `Abgleich fertig (${r.changes} Änderungen).` : `Abgleich fehlgeschlagen: ${r.error || 'unbekannt'}`;
+          let r = await syncNow();
+          if (r.ok && r.skipped && await confirmSheet('Termine entfernen?', `${r.skipped} Termine gibt es im Google Kalender nicht mehr. Zur Sicherheit wurden sie hier nicht gelöscht. Jetzt auch hier löschen?`, 'Löschen')) r = await syncNow({ force: true });
+          gmsg.textContent = r.ok ? `Abgleich fertig (${r.changes} Änderungen${r.skipped ? `, ${r.skipped} fehlende Termine behalten` : ''}).` : `Abgleich fehlgeschlagen: ${r.error || 'bitte später nochmal versuchen'}`;
         } }, 'Jetzt abgleichen'),
         el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
           await saveG(); gmsg.textContent = 'Lade alte Termine …';
@@ -207,14 +215,15 @@ function renderCalendar(root, view) {
       el('span', { class: 'cal-dots' }, ...evs.slice(0, 3).map((e) => el('i', { style: { background: catOf(e.categoryId).color } })))));
   }
   const dayEvents = state.ev.events.filter((e) => covers(e, view.day)).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-  root.replaceChildren(
+  root.replaceChildren(el('div', { class: 'cal-layout' }, el('div', { class: 'cal-box card' },
     el('div', { class: 'cal-head' },
-      el('button', { class: 'icon-btn', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() - 1, 1); view.redraw(); } }, '‹'),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Vorheriger Monat', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() - 1, 1); view.redraw(); } }, '‹'),
       el('strong', null, monthName(first)),
-      el('button', { class: 'icon-btn', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() + 1, 1); view.redraw(); } }, '›')),
-    el('div', { class: 'cal-grid' }, ...['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => el('span', { class: 'cal-wd' }, w)), ...cells),
-    el('h3', { class: 'section-title month' }, el('span', null, parseIso(view.day).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
-    ...(dayEvents.length ? dayEvents.map((e) => eventRow(e)) : [el('p', { class: 'empty' }, 'Kein Termin an diesem Tag.')]));
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Nächster Monat', onclick: () => { view.month = new Date(first.getFullYear(), first.getMonth() + 1, 1); view.redraw(); } }, '›')),
+    el('div', { class: 'cal-grid' }, ...['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => el('span', { class: 'cal-wd' }, w)), ...cells)),
+    el('div', { class: 'cal-day' },
+      el('h3', { class: 'section-title month' }, el('span', null, parseIso(view.day).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))),
+      ...(dayEvents.length ? dayEvents.map((e) => eventRow(e)) : [el('p', { class: 'empty' }, 'Kein Termin an diesem Tag.')]))));
 }
 
 function renderIdeaList(box) {
@@ -223,7 +232,7 @@ function renderIdeaList(box) {
     el('div', { class: 'item idea' },
       el('button', { class: 'item-main', type: 'button', onclick: () => openIdeaSheet(i) }, el('span', { class: 'circle small', style: { background: 'var(--card-2)' } }, '💡'),
         el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, i.title), i.note ? el('span', { class: 'hint' }, i.note) : null))),
-    () => removeIdea(i.id))) : [el('p', { class: 'empty' }, 'Noch keine Ideen.')]));
+    () => { removeIdea(i.id); toast(`„${i.title}“ gelöscht`, { action: 'Rückgängig', onAction: () => restoreIdea(i) }); })) : [el('p', { class: 'empty' }, 'Noch keine Ideen.')]));
 }
 
 function renderIdeas(root, box) {
@@ -241,12 +250,13 @@ export function mountEvents(root) {
   const subnav = el('div', { class: 'chips' });
   const content = el('div');
   const ideaList = el('div');
-  const fab = el('button', { class: 'fab', 'aria-label': 'Neuer Termin', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day } : null)) }, '+');
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Termin oder neue Idee', onclick: () => (view.sub === 'ideen' ? openIdeaSheet() : openEventSheet(null, view.sub === 'kalender' ? { start: view.day } : null)) }, icon('plus'));
   const SUBS = [['kommend', 'Übersicht'], ['kalender', 'Kalender'], ['ideen', 'Ideen']];
   function draw() { keepChips(drawNow); }
   function drawNow() {
     subnav.replaceChildren(...SUBS.map(([k, l]) => el('button', { class: 'chip' + (view.sub === k ? ' active' : ''), onclick: () => { view.sub = k; draw(); } }, l)),
-      el('button', { class: 'chip gear', onclick: openEvSettings, 'aria-label': 'Kategorien' }, '⚙︎'));
+      el('button', { class: 'chip gear', type: 'button', onclick: openEvSettings, 'aria-label': 'Kategorien und Google Kalender' }, icon('gear')));
+    root.classList.toggle('wide', view.sub === 'kalender');
     if (view.sub === 'kommend') renderUpcoming(content, view);
     else if (view.sub === 'kalender') renderCalendar(content, view);
     else renderIdeas(content, ideaList);

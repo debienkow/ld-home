@@ -49,7 +49,7 @@ export async function getDocs(q) { return colSnap(q.name, q.conds); }
 export function writeBatch() {
   const ops = [];
   return {
-    set: (ref, v) => ops.push(() => put(ref, v, false)),
+    set: (ref, v, o) => ops.push(() => put(ref, v, o && o.merge)),
     delete: (ref) => ops.push(() => delete colOf(ref.col)[ref.id]),
     commit: async () => { ops.forEach((o) => o()); [...new Set(listeners.map((l) => l.name))].forEach(notify); }
   };

@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function member() {
+      return request.auth != null
+        && request.auth.uid in ['In3JXPoEyMPJz2BmUdZBNLJOqHK2', 'ImUdo4fdrESRrZ1P1roaebCpqC03'];
+    }
+    match /profiles/{uid} {
+      allow read: if member();
+      allow write: if member() && request.auth.uid == uid;
+    }
+    match /{col}/{id} {
+      allow read, write: if member()
+        && col in ['items', 'catalog', 'config', 'fin_entries', 'fin_recurring', 'events', 'event_ideas', 'dms_docs', 'dms_pages'];
+    }
+  }
+}
