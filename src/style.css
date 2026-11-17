@@ -51,7 +51,7 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 0
 .avatar { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; object-fit: cover; }
 .avatar.big { width: 96px; height: 96px; font-size: 2.2rem; }
 .offline { background: #f5c04a; color: #3a2a00; text-align: center; padding: 6px; font-size: .85rem; }
-.content { padding: 14px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px); max-width: 640px; margin: 0 auto; }
+.content { padding: 14px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 96px); max-width: 640px; margin: 0 auto; }
 .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: space-around; background: var(--card); border-top: 1px solid var(--line); padding: 6px 4px calc(env(safe-area-inset-bottom) + 6px); }
 .tab { flex: 1; display: grid; justify-items: center; gap: 2px; border: 0; background: none; font-size: .72rem; color: var(--muted); padding: 4px 0; }
 .tab-icon { font-size: 1.35rem; }
@@ -221,3 +221,7 @@ h2.tap { cursor: pointer; }
 .idea-add .btn { flex: none; }
 .idea-hint { margin: 0 4px 12px; }
 .item.idea { margin-bottom: 0; }
+button, .chip, .tab, .seg-btn { touch-action: manipulation; }
+.chip, .btn, .seg-btn { min-height: 40px; }
+.tab:focus-visible, .chip:focus-visible, .btn:focus-visible, .card.tap:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (min-width: 700px) { .fab { right: calc(50% - 320px + 18px); } }
