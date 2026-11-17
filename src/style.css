@@ -368,3 +368,18 @@ wc-pick { display: block; min-width: 0; }
 .pull.ready { color: var(--primary); }
 .pull.spin .ico { animation: pullspin .8s linear infinite; }
 @keyframes pullspin { to { transform: rotate(360deg); } }
+
+/* Stichworte */
+.field { display: grid; gap: 6px; }
+.field-label { font-size: .85rem; color: var(--muted); }
+.tag-input { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 48px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); cursor: text; }
+.tag-input:focus-within { outline: 2px solid var(--primary); border-color: transparent; }
+.tag-list { display: contents; }
+.tag-input input { flex: 1; min-width: 120px; width: auto; min-height: 34px; padding: 4px 6px; border: 0; background: none; }
+.tag-input input:focus { outline: none; }
+.tag-chip { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-weight: 600; font-size: .9rem; }
+.tag-chip button { width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: inherit; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.tag-sugg { margin-top: 6px; }
+.tag-sugg:empty { display: none; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
+.chip-count { margin-left: 6px; font-size: .78rem; color: var(--muted); }

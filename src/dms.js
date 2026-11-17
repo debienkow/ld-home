@@ -11,6 +11,55 @@ const dateText = (iso) => new Date(iso + 'T00:00').toLocaleDateString('de-DE', {
 const dataToFile = (d) => ({ type: 'image/jpeg', name: 'foto.jpg', dataUrl: d });
 const tagsOf = (t) => String(t || '').split(',').map((x) => x.trim()).filter(Boolean);
 
+/* Alle Stichworte mit Anzahl, alphabetisch */
+export function allTags() {
+  const map = new Map();
+  for (const d of state.dms.docs) for (const t of d.tags || []) {
+    const k = t.toLowerCase();
+    const cur = map.get(k) || { tag: t, n: 0 };
+    cur.n++;
+    map.set(k, cur);
+  }
+  return [...map.values()].sort((a, b) => a.tag.localeCompare(b.tag, 'de'));
+}
+
+/* Stichwort-Eingabe mit Chips und Vorschlägen */
+function tagField(initial) {
+  let tags = [...(initial || [])];
+  const list = el('span', { class: 'tag-list' });
+  const input = el('input', { type: 'text', placeholder: 'Stichwort eingeben …', autocomplete: 'off', enterkeyhint: 'done' });
+  const box = el('div', { class: 'tag-input' }, list, input);
+  const sugg = el('div', { class: 'chips small tag-sugg' });
+  const has = (t) => tags.some((x) => x.toLowerCase() === t.toLowerCase());
+  const add = (raw) => {
+    for (const t of tagsOf(raw)) if (!has(t)) tags.push(t);
+  };
+  const draw = () => {
+    list.replaceChildren(...tags.map((t, i) => el('span', { class: 'tag-chip' }, t,
+      el('button', { type: 'button', 'aria-label': `${t} entfernen`, onmousedown: (e) => e.preventDefault(), onclick: () => { tags.splice(i, 1); draw(); } }, '×'))));
+    const q = input.value.trim().toLowerCase();
+    const known = allTags().filter((x) => !has(x.tag));
+    const hits = (q ? known.filter((x) => x.tag.toLowerCase().includes(q)).sort((a, b) => b.tag.toLowerCase().startsWith(q) - a.tag.toLowerCase().startsWith(q) || b.n - a.n) : known.sort((a, b) => b.n - a.n)).slice(0, 8);
+    sugg.replaceChildren(...hits.map((x) => el('button', { type: 'button', class: 'chip', onmousedown: (e) => e.preventDefault(), onclick: () => { add(x.tag); input.value = ''; draw(); } }, x.tag)));
+  };
+  input.addEventListener('input', () => {
+    if (input.value.includes(',')) {
+      const parts = input.value.split(',');
+      input.value = parts.pop().replace(/^\s+/, '');
+      add(parts.join(','));
+    }
+    draw();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (input.value.trim()) { add(input.value); input.value = ''; draw(); } }
+    else if (e.key === 'Backspace' && !input.value && tags.length) { tags.pop(); draw(); }
+  });
+  input.addEventListener('blur', () => { if (input.value.trim()) { add(input.value); input.value = ''; draw(); } });
+  box.addEventListener('click', (e) => { if (e.target === box || e.target === list) input.focus(); });
+  draw();
+  return { node: el('div', null, box, sugg), values: () => { add(input.value); input.value = ''; return [...tags]; } };
+}
+
 export const recentDocs = (n) => [...state.dms.docs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, n);
 
 function openPageView(img, n) {
@@ -101,7 +150,7 @@ export function openDocSheet(doc, edit = false) {
     const title = el('input', { type: 'text', value: doc ? doc.title : '', placeholder: 'z. B. Mietvertrag' });
     title.addEventListener('input', () => (touchedTitle = true));
     const cat = el('select', null, ...cats().map((c) => el('option', { value: c.id, selected: doc && c.id === doc.categoryId }, `${c.icon} ${c.name}`)));
-    const tags = el('input', { type: 'text', value: doc ? (doc.tags || []).join(', ') : '', placeholder: 'Stichworte, durch Komma getrennt' });
+    const tags = tagField(doc ? doc.tags : []);
     const date = el('input', { type: 'date', value: doc ? doc.date : todayIso() });
     const note = el('input', { type: 'text', value: doc ? doc.note || '' : '', placeholder: 'Notiz (optional)' });
     let loading = !!doc;
@@ -166,7 +215,7 @@ export function openDocSheet(doc, edit = false) {
       const fresh = pages.filter((p) => p.isNew).map((p) => ({ idx: ++idx, img: p.img }));
       try {
         await saveDms(doc && doc.id, {
-          title: title.value.trim(), categoryId: cat.value, tags: tagsOf(tags.value), date: date.value || todayIso(),
+          title: title.value.trim(), categoryId: cat.value, tags: tags.values(), date: date.value || todayIso(),
           note: note.value.trim(), text: text.value.slice(0, 400000), pageCount: pages.length, bytes: pages.reduce((a, p) => a + p.img.length, 0), thumb: await compress(pages[0].img, 220, 0.6)
         }, fresh, removed);
         close();
@@ -183,9 +232,11 @@ export function openDocSheet(doc, edit = false) {
       el('button', { class: 'link-btn', type: 'button', onclick: () => camera.click() }, 'Einzelfoto mit Kamera-App'),
       camera, gallery, strip, status,
       el('label', null, 'Titel', title), el('label', null, 'Kategorie', cat),
-      el('label', null, 'Stichworte', tags), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
+      el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Stichworte'), tags.node), el('label', null, 'Datum des Dokuments', date), el('label', null, 'Notiz', note),
       el('label', null, 'Erkannter Text', text),
-      el('button', { class: 'btn ghost', type: 'button', onclick: () => runOcr(false) }, 'Text neu erkennen'),
+      el('div', { class: 'row wrap' },
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => runOcr(false) }, 'Text neu erkennen'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { text.value = ''; ocrText = ''; status.textContent = 'Erkannter Text entfernt (wird beim Speichern übernommen).'; } }, 'Erkannten Text entfernen')),
       ...(doc ? [el('button', { class: 'btn ghost', type: 'button', onclick: async () => {
         if (!pages.length) return;
         downloadBlob(await imagesToPdf(pages.map((p) => p.img)), `${(title.value || 'dokument').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'dokument'}.pdf`);
@@ -230,7 +281,7 @@ export function docRow(d) {
 }
 
 export function mountDms(root) {
-  const view = { q: '', cat: '' };
+  const view = { q: '', cat: '', tag: '' };
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Titel, Stichwort oder Text suchen …', oninput: (e) => { view.q = e.target.value; drawList(); } });
   const chips = el('div', { class: 'chips' });
   const list = el('div');
@@ -241,15 +292,33 @@ export function mountDms(root) {
     chips.replaceChildren(
       el('button', { class: 'chip' + (!view.cat ? ' active' : ''), onclick: () => { view.cat = ''; drawChips(); drawList(); } }, 'Alle'),
       ...cats().map((c) => el('button', { class: 'chip' + (view.cat === c.id ? ' active' : ''), onclick: () => { view.cat = c.id; drawChips(); drawList(); } }, `${c.icon} ${c.name}`)),
+      view.tag
+        ? el('button', { class: 'chip active', type: 'button', onclick: () => { view.tag = ''; drawChips(); drawList(); } }, `# ${view.tag} ×`)
+        : el('button', { class: 'chip', type: 'button', onclick: openTagIndex }, '# Stichworte'),
       el('button', { class: 'chip gear', type: 'button', onclick: openDmsSettings, 'aria-label': 'Kategorien' }, icon('gear')));
   }
   function drawList() {
     const q = view.q.trim().toLowerCase();
     const docs = state.dms.docs
-      .filter((d) => (!view.cat || d.categoryId === view.cat) && (!q || `${d.title} ${(d.tags || []).join(' ')} ${d.note || ''} ${d.text || ''}`.toLowerCase().includes(q)))
+      .filter((d) => (!view.cat || d.categoryId === view.cat) && (!view.tag || (d.tags || []).some((t) => t.toLowerCase() === view.tag.toLowerCase())) && (!q || `${d.title} ${(d.tags || []).join(' ')} ${d.note || ''} ${d.text || ''}`.toLowerCase().includes(q)))
       .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
     usage.replaceChildren(usageCard());
-    list.replaceChildren(...(docs.length ? docs.map(docRow) : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
+    const rows = [];
+    let year = '';
+    for (const d of docs) {
+      const y = (d.date || '').slice(0, 4);
+      if (y !== year) { year = y; rows.push(el('h3', { class: 'section-title month' }, el('span', null, y || 'Ohne Datum'))); }
+      rows.push(docRow(d));
+    }
+    list.replaceChildren(...(docs.length ? rows : [el('p', { class: 'empty' }, state.dms.docs.length ? 'Nichts gefunden.' : 'Noch keine Dokumente. Tippe unten auf + und fotografiere das erste.')]));
+  }
+  function openTagIndex() {
+    openSheet('Stichworte', (body, close) => {
+      const tags = allTags();
+      body.append(tags.length
+        ? el('div', { class: 'chips wrap' }, ...tags.map((x) => el('button', { type: 'button', class: 'chip', onclick: () => { view.tag = x.tag; close(); drawChips(); drawList(); } }, x.tag, el('span', { class: 'chip-count' }, String(x.n)))))
+        : el('p', { class: 'empty' }, 'Noch keine Stichworte vergeben.'));
+    });
   }
   const usage = el('div');
   root.replaceChildren(el('div', { class: 'search-wrap' }, search), chips, el('div', { class: 'doc-list' }, list), usage, fab);
