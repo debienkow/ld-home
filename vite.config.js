@@ -1,7 +1,16 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
+
+/* Version und Stand der letzten Änderung */
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+let stamp = new Date();
+try { stamp = new Date(execSync('git log -1 --format=%cI', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()); } catch (e) { /* ohne Git: Bauzeit */ }
+if (Number.isNaN(stamp.getTime())) stamp = new Date();
+const fmt = (o) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', ...o }).format(stamp);
+const BUILD = `Version ${pkg.version}, Stand: ${fmt({ day: '2-digit', month: '2-digit', year: 'numeric' })}, ${fmt({ hour: '2-digit', minute: '2-digit' })} Uhr`;
 
 const demo = (f) => fileURLToPath(new URL(`./src/demo/${f}`, import.meta.url));
 
@@ -59,6 +68,7 @@ const assetList = (mode) => ({
 export default defineConfig(({ mode }) => ({
   base: '/ld-home/',
   build: { target: 'es2020' },
+  define: { __BUILD__: JSON.stringify(BUILD) },
   plugins: [csp(), tess(mode), assetList(mode)],
   resolve: mode === 'demo' ? { alias: { 'firebase/firestore': demo('fs.js'), 'firebase/auth': demo('auth.js'), 'firebase/app': demo('app.js') } } : {}
 }));

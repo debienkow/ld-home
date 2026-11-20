@@ -54,7 +54,8 @@ export function openProfile() {
             await signOut(auth);
           }
         }
-      }, 'Abmelden')
+      }, 'Abmelden'),
+      el('p', { class: 'hint build-info' }, __BUILD__)
     );
   });
 }
