@@ -5,7 +5,7 @@ import {
 import { db } from './firebase.js';
 import { USERS } from './config.js';
 import { toast } from './dom.js';
-import { BUILTIN_CATALOG, DEFAULT_CATEGORIES, DEFAULT_STORES } from './catalog.js';
+import { BUILTIN_CATALOG, DEFAULT_CATEGORIES, DEFAULT_PLACES, DEFAULT_STORES } from './catalog.js';
 import * as FL from './finlogic.js';
 import { DEFAULT_EVENT_CATEGORIES } from './evlogic.js';
 import { DEFAULT_DMS_CATEGORIES } from './dmslogic.js';
@@ -14,7 +14,7 @@ const blank = () => ({
   user: null,
   items: [],
   learned: new Map(),
-  settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES, doneMinutes: 60, stockCheckedAt: 0 },
+  settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES, places: DEFAULT_PLACES, doneMinutes: 60, stockCheckedAt: 0 },
   profiles: {},
   fin: {
     entries: [],
@@ -119,6 +119,7 @@ export function startStore(user) {
         state.settings = {
           categories: listOr(d.categories, DEFAULT_CATEGORIES),
           stores: Array.isArray(d.stores) ? d.stores : DEFAULT_STORES,
+          places: Array.isArray(d.places) ? d.places : DEFAULT_PLACES,
           doneMinutes: Number.isFinite(d.doneMinutes) && d.doneMinutes >= 0 ? d.doneMinutes : 60,
           stockCheckedAt: d.stockCheckedAt || 0
         };

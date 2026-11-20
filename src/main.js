@@ -35,11 +35,11 @@ let unmountTab = null;
 let unsubHeader = null;
 
 const currentTab = () => {
-  const id = location.hash.replace('#', '');
+  const id = location.hash.replace('#', '').split('/')[0];
   return TABS.some((t) => t.id === id) ? id : 'home';
 };
 const go = (id) => {
-  if (currentTab() === id) window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (location.hash.replace('#', '') === id) window.scrollTo({ top: 0, behavior: 'smooth' });
   else location.hash = id;
 };
 

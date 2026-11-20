@@ -3,9 +3,10 @@ const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.
 export function seed() {
   const items = Object.fromEntries([['Milch', 'milch'], ['Brot', 'brot'], ['Äpfel', 'obst'], ['Spülmittel', 'haushalt'], ['Butter', 'milch']].map(([name, categoryId], i) => ['i' + i, { name, qty: '', categoryId, store: null, done: i >= 3, doneAt: i === 3 ? Date.now() : i === 4 ? Date.now() - 2 * 3600000 : 0, createdAt: Date.now() + i }]));
   const catalog = {
-    hafermilch: { name: 'Hafermilch', categoryId: 'milch', stockOnly: true, stock: { target: 8, min: 2, unit: 'Packungen', count: 3, countAt: Date.now() - 6 * 86400000 } },
-    toilettenpapier: { name: 'Toilettenpapier', categoryId: 'haushalt', stockOnly: true, stock: { target: 2, min: 1, unit: 'Pakete', count: 2 } },
-    'küchenrolle': { name: 'Küchenrolle', categoryId: 'haushalt', stockOnly: true, stock: { target: 4, min: 1, unit: 'Rollen' } }
+    hafermilch: { name: 'Hafermilch', categoryId: 'milch', stockOnly: true, stock: { target: 8, min: 2, place: 'o2', count: 3, countAt: Date.now() - 6 * 86400000 } },
+    toilettenpapier: { name: 'Toilettenpapier', categoryId: 'haushalt', stockOnly: true, stock: { target: 2, min: 1, place: 'o4', count: 2 } },
+    zahnpasta: { name: 'Zahnpasta', categoryId: 'drogerie', stockOnly: true, stock: { target: 3, min: 1, place: 'o6', count: 2 } },
+    'küchenrolle': { name: 'Küchenrolle', categoryId: 'haushalt', stockOnly: true, stock: { target: 4, min: 1, place: 'o4' } }
   };
   const past = Object.fromEntries(Array.from({ length: 23 }, (_, i) => ['old' + i, { title: `Alter Termin ${i + 1}`, categoryId: 'treffen', start: iso(-3 - i * 9), end: iso(-3 - i * 9), allDay: true, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes' }, createdAt: Date.now() }]));
   const e = (id, type, date, title, cents, payer, categoryId, extra = {}) => [id, { type, date, time: '', title, cents, payer, categoryId, noSplit: false, note: '', createdAt: Date.now(), ...extra }];

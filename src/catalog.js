@@ -44,3 +44,6 @@ const RAW = {
 export const BUILTIN_CATALOG = Object.entries(RAW).flatMap(([categoryId, list]) =>
   list.split(',').map((name) => ({ name, categoryId }))
 );
+
+export const DEFAULT_PLACES = ['Kühlschrank', 'Tiefkühler', 'Vorratsregal', 'Müslischrank', 'Putzschrank', 'Badezimmerschrank', 'Spiegelschrank']
+  .map((name, i) => ({ id: 'o' + i, name }));

@@ -41,6 +41,7 @@ function orderedCategories() {
 }
 
 export function mountShopping(root) {
+  if (location.hash.replace('#', '') === 'einkauf/vorrat') return mountStock(root);
   const search = el('input', {
     type: 'search',
     class: 'search',
@@ -156,9 +157,8 @@ export function mountShopping(root) {
       expiryTimer = setTimeout(render, Math.max(1000, Math.min(next + 500, 2147000000)));
     }
     doneBox.replaceChildren(
-      ...(doneItems.length
-        ? [el('h3', { class: 'section-title' }, 'Zuletzt abgehakt'), ...doneItems.map((i) => row(i, true))]
-        : [])
+      el('h3', { class: 'section-title' }, 'Zuletzt abgehakt'),
+      ...(doneItems.length ? doneItems.map((i) => row(i, true)) : [el('p', { class: 'hint empty-line' }, 'Derzeit keine Einträge.')])
     );
 
     const open = items.filter((i) => !i.done && (selectedStore === '__mine' ? !!i.owner : !selectedStore || !i.store || i.store === selectedStore));
@@ -202,7 +202,7 @@ export function mountShopping(root) {
     const low = list.filter((x) => isLow(x.stock));
     stockBox.replaceChildren(
       el('h3', { class: 'section-title' }, 'Vorrat'),
-      el('button', { class: 'card stock-card', type: 'button', onclick: openStock },
+      el('button', { class: 'card stock-card', type: 'button', onclick: () => { fromList = true; location.hash = 'einkauf/vorrat'; } },
         el('span', { class: 'circle' , style: { background: 'var(--card-2)' } }, '📦'),
         el('span', { class: 'grow fin-main' },
           el('span', { class: 'item-name' }, list.length ? `${list.length} Artikel im Vorrat` : 'Vorrat einrichten'),
@@ -224,7 +224,9 @@ const num = (v) => { const n = parseInt(String(v).replace(/\D/g, ''), 10); retur
 const isLow = (s) => s && Number.isFinite(s.count) && s.count <= (s.min || 0);
 const stockSorted = () => {
   const order = state.settings.categories.map((c) => c.id);
-  return stockEntries().sort((a, b) => (order.indexOf(catOf(a.categoryId).id) - order.indexOf(catOf(b.categoryId).id)) || a.name.localeCompare(b.name, 'de'));
+  const places = state.settings.places.map((p) => p.id);
+  const pIdx = (x) => { const i = places.indexOf(x.stock.place); return i < 0 ? places.length : i; };
+  return stockEntries().sort((a, b) => (pIdx(a) - pIdx(b)) || (order.indexOf(catOf(a.categoryId).id) - order.indexOf(catOf(b.categoryId).id)) || a.name.localeCompare(b.name, 'de'));
 };
 const onList = (name) => state.items.some((i) => !i.done && norm(i.name) === norm(name));
 function checkedText() {
@@ -237,33 +239,41 @@ function checkedText() {
 }
 const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', value: value ?? '', placeholder: placeholder || '', oninput: (e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== e.target.value) e.target.value = v; } });
 
-function openStock() {
-  let unsub = null;
-  openSheet('Vorrat', (body) => {
-    const draw = () => {
-      const list = stockSorted();
-      body.replaceChildren(
-        el('div', { class: 'stock-head' },
-          el('span', { class: 'hint' }, 'Letzte Prüfung'),
-          el('strong', null, checkedText())),
-        el('button', { class: 'btn primary wide', type: 'button', disabled: !list.length, onclick: runCheck }, '✓ Vorrat aktualisieren'),
-        ...(list.length ? list.map((x) => {
-          const s = x.stock;
-          const low = isLow(s);
-          return el('button', { class: 'item fin-row stock-row' + (low ? ' low' : ''), type: 'button', onclick: () => openStockItem(x) },
-            iconCircle(catOf(x.categoryId)),
-            el('span', { class: 'grow fin-main' },
-              el('span', { class: 'item-name' }, x.name),
-              el('span', { class: 'hint' }, `Nachkaufen ab ${s.min || 0}${s.unit ? ` ${s.unit}` : ''}${onList(x.name) ? ' · steht auf der Liste' : ''}`)),
-            el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`));
-        }) : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Lege Artikel an, die ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]),
-        el('div', { class: 'row end actions' },
-          el('button', { class: 'btn ghost', type: 'button', onclick: () => openStockItem(null) }, '+ Artikel'))
-      );
-    };
-    draw();
-    unsub = subscribe(draw);
-  }, () => unsub && unsub());
+let fromList = false;
+const placeOf = (id) => state.settings.places.find((p) => p.id === id);
+
+/* Vorrat als eigene Seite im Einkauf */
+function mountStock(root) {
+  const back = () => { if (fromList) { fromList = false; history.back(); } else location.hash = 'einkauf'; };
+  const draw = () => {
+    const list = stockSorted();
+    let lastPlace = null;
+    const rows = list.flatMap((x) => {
+      const s = x.stock;
+      const low = isLow(s);
+      const pl = placeOf(s.place);
+      const head = (pl ? pl.id : '') !== lastPlace ? [el('h3', { class: 'section-title place' }, pl ? `📍 ${pl.name}` : 'Ohne Lagerort')] : [];
+      lastPlace = pl ? pl.id : '';
+      return [...head, el('button', { class: 'item fin-row stock-row' + (low ? ' low' : ''), type: 'button', onclick: () => openStockItem(x) },
+        iconCircle(catOf(x.categoryId)),
+        el('span', { class: 'grow fin-main' },
+          el('span', { class: 'item-name' }, x.name),
+          el('span', { class: 'hint' }, `Nachkaufen ab ${s.min || 0}${onList(x.name) ? ' · steht auf der Liste' : ''}`)),
+        el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`))];
+    });
+    root.replaceChildren(
+      el('div', { class: 'page-head' },
+        el('button', { class: 'icon-btn back-btn', type: 'button', 'aria-label': 'Zurück zum Einkauf', onclick: back }, '‹'),
+        el('h2', null, 'Vorrat')),
+      el('div', { class: 'stock-head card' },
+        el('span', { class: 'hint' }, 'Letzte Prüfung'),
+        el('strong', null, checkedText())),
+      el('button', { class: 'btn primary wide stock-check-btn', type: 'button', disabled: !list.length, onclick: runCheck }, '✓ Vorrat aktualisieren'),
+      ...(rows.length ? rows : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Lege mit + Artikel an, die ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]),
+      el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Vorrat-Artikel', onclick: () => openStockItem(null) }, icon('plus')));
+  };
+  draw();
+  return subscribe(draw);
 }
 
 /* Vorrat-Artikel anlegen oder bearbeiten */
@@ -279,8 +289,9 @@ function openStockItem(entry) {
     });
     const target = numInput(s.target, 'z. B. 8');
     const min = numInput(s.min, 'z. B. 2');
-    const count = numInput(s.count, 'unbekannt');
-    const unit = el('input', { type: 'text', value: s.unit || '', placeholder: 'z. B. Packungen, Flaschen (optional)' });
+    const place = el('select', null,
+      el('option', { value: '' }, 'Kein Lagerort'),
+      ...state.settings.places.map((x) => el('option', { value: x.id, selected: x.id === s.place }, x.name)));
     const store = el('select', null,
       el('option', { value: '' }, 'Alle Läden'),
       ...state.settings.stores.map((x) => el('option', { value: x.id, selected: x.id === s.store }, `Nur ${x.name}`)));
@@ -291,9 +302,8 @@ function openStockItem(entry) {
       el('label', null, 'Kategorie', cat),
       el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Wunschvorrat', target), el('label', { class: 'grow' }, 'Nachkaufen ab', min)),
       el('p', { class: 'hint' }, 'Liegt der Bestand bei der Prüfung bei „Nachkaufen ab“ oder darunter, kommt der Artikel mit der Menge „Vorrat“ auf die Einkaufsliste.'),
-      el('label', null, 'Einheit', unit),
+      el('label', null, 'Lagerort', place),
       el('label', null, 'Laden', store),
-      el('label', null, 'Aktueller Bestand', count),
       err,
       el('div', { class: 'row between actions' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
@@ -301,15 +311,14 @@ function openStockItem(entry) {
         } }, 'Entfernen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: async () => {
           const n = name.value.trim();
-          const t = num(target.value), m = num(min.value) ?? 0, c = num(count.value);
+          const t = num(target.value), m = num(min.value) ?? 0;
           if (!n) return (err.textContent = 'Bitte einen Artikel eingeben.');
           if (!t) return (err.textContent = 'Bitte einen Wunschvorrat von mindestens 1 eingeben.');
           if (m >= t) return (err.textContent = '„Nachkaufen ab“ muss kleiner als der Wunschvorrat sein.');
           const key = stockKey(n);
           const other = state.learned.get(key);
           if (other && other.stock && (!entry || entry.key !== key)) return (err.textContent = 'Dieser Artikel steht schon im Vorrat.');
-          const changedCount = c !== (Number.isFinite(s.count) ? s.count : null);
-          await saveStock(entry && entry.key, n, cat.value, { target: t, min: m, unit: unit.value.trim(), store: store.value || '', count: c, ...(changedCount ? { countAt: Date.now() } : {}) });
+          await saveStock(entry && entry.key, n, cat.value, { target: t, min: m, place: place.value || '', store: store.value || '' });
           close();
         } }, 'Speichern'))
     );
@@ -343,9 +352,10 @@ function runCheck() {
     function show() {
       const x = list[idx];
       const s = x.stock;
-      step.textContent = `${idx + 1} von ${list.length}`;
+      const pl = placeOf(s.place);
+      step.textContent = `${idx + 1} von ${list.length}${pl ? ` · 📍 ${pl.name}` : ''}`;
       title.replaceChildren(iconCircle(catOf(x.categoryId)), el('span', null, x.name));
-      of.textContent = `/ ${s.target || 0}${s.unit ? ` ${s.unit}` : ''}`;
+      of.textContent = `/ ${s.target || 0}`;
       info.textContent = `Nachkaufen ab ${s.min || 0}${Number.isFinite(s.count) ? ` · zuletzt ${s.count}` : ''}. Leer lassen überspringt.`;
       input.value = entered.has(x.key) ? String(entered.get(x.key)) : '';
       back.disabled = idx === 0;
@@ -380,6 +390,7 @@ function openSettings() {
   openSheet('Einkauf einrichten', (body, close) => {
     const cats = state.settings.categories.map((c) => ({ ...c }));
     const stores = state.settings.stores.map((s) => ({ ...s, order: [...(s.order || [])] }));
+    const places = state.settings.places.map((p) => ({ ...p }));
     const area = el('div');
     const headerToggle = el('label', { class: 'toggle-row' },
       el('span', null, 'Kategorie-Überschriften anzeigen'),
@@ -431,7 +442,15 @@ function openSettings() {
         el('h3', null, 'Kategorien'), ...catRows,
         el('button', { class: 'btn ghost', type: 'button', onclick: () => { cats.push({ id: 'k' + uid(), name: 'Neu', icon: '🛒', color: '#9aa0a6' }); draw(); } }, '+ Kategorie'),
         el('h3', null, 'Läden'), ...storeBlocks,
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => { stores.push({ id: 's' + uid(), name: 'Neuer Laden', order: cats.map((c) => c.id) }); draw(); } }, '+ Laden')
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { stores.push({ id: 's' + uid(), name: 'Neuer Laden', order: cats.map((c) => c.id) }); draw(); } }, '+ Laden'),
+        el('h3', null, 'Lagerorte (Vorrat)'),
+        el('p', { class: 'hint' }, 'Die Reihenfolge bestimmt die Sortierung der Vorratsliste und der Prüfung.'),
+        ...places.map((p, i) => el('div', { class: 'edit-row' },
+          el('input', { class: 'grow', value: p.name, oninput: (e) => (p.name = e.target.value) }),
+          el('button', { class: 'icon-btn', type: 'button', onclick: () => move(places, i, -1) }, '↑'),
+          el('button', { class: 'icon-btn', type: 'button', onclick: () => move(places, i, 1) }, '↓'),
+          el('button', { class: 'icon-btn', type: 'button', onclick: () => { places.splice(i, 1); draw(); } }, '🗑'))),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { places.push({ id: 'o' + uid(), name: 'Neuer Ort' }); draw(); } }, '+ Lagerort')
       );
     }
     draw();
@@ -440,7 +459,7 @@ function openSettings() {
       el('button', { class: 'btn primary', type: 'button', onclick: async () => {
         if (!cats.some((c) => c.name.trim())) return;
         const dm = num(doneMin.value);
-        await saveSettings({ categories: cats.filter((c) => c.name.trim()), stores: stores.filter((s) => s.name.trim()), doneMinutes: dm === null ? 60 : dm });
+        await saveSettings({ categories: cats.filter((c) => c.name.trim()), stores: stores.filter((s) => s.name.trim()), places: places.filter((p) => p.name.trim()), doneMinutes: dm === null ? 60 : dm });
         close();
       } }, 'Speichern')));
   });
