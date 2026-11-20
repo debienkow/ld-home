@@ -1,9 +1,11 @@
 /* Vorrat ↔ Einkaufsliste abgleichen (nur auf Anstoß) */
-import { markStockListed, norm, putStockItem, removeItem, state, stockEntries, updateItem } from './store.js';
+import { norm, putStockItem, removeItem, state, stockEntries, updateItem } from './store.js';
 
 const AUTO = /^Vorrat\b/;
 export const stockNeed = (s) => Math.max(1, (s.target || 0) - (s.count || 0));
 export const stockLow = (s) => !!s && !s.ok && Number.isFinite(s.count) && s.count <= (s.min || 0);
+/* Nach der letzten Zählung schon gekauft (abgehakt)? */
+const boughtSince = (name, at) => state.items.some((i) => i.done && norm(i.name) === norm(name) && (i.doneAt || 0) >= at);
 const openOf = (name) => state.items.find((i) => !i.done && norm(i.name) === norm(name));
 
 /* Ein Artikel; liefert 'added' | 'updated' | 'removed' | 'listed' | null */
@@ -18,11 +20,8 @@ export async function syncStockOne(x) {
       await updateItem(open.id, { qty });
       return 'updated';
     }
-    if (s.listedFor !== undefined && (s.listedFor || 0) === (s.countAt || 0)) return null;
-    await Promise.all([
-      putStockItem(x.key, { name: x.name, qty, categoryId: x.categoryId || 'sonstiges', store: s.store || null }),
-      markStockListed(x.key, s.countAt || 0)
-    ]);
+    if (boughtSince(x.name, s.countAt || 0)) return null;
+    await putStockItem(x.key, { name: x.name, qty, categoryId: x.categoryId || 'sonstiges', store: s.store || null });
     return 'added';
   }
   if (open && AUTO.test(open.qty || '')) { await removeItem(open.id); return 'removed'; }

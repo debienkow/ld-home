@@ -296,8 +296,6 @@ export const removeStock = (key) => {
 };
 export const putStockItem = (key, data) =>
   settle(setDoc(doc(db, 'items', 'vorrat_' + key), { owner: '', done: false, doneAt: 0, ...data, ...stamp() }));
-export const markStockListed = (key, countAt) =>
-  settle(setDoc(doc(db, 'catalog', key), { stock: { listedFor: countAt || 0 } }, { merge: true }));
 export const setStockCount = (key, count, ok, at) =>
   settle(setDoc(doc(db, 'catalog', key), { stock: { count: ok ? null : count, ok: !!ok, countAt: at || Date.now() } }, { merge: true }));
 export const saveShopMeta = (patch) => settle(setDoc(doc(db, 'config', 'shopping'), patch, { merge: true }));

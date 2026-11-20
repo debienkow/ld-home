@@ -1,5 +1,5 @@
 /* Tab Einkauf */
-import { confirmSheet, el, icon, longPress, openSheet, swipeActions, toast, uid } from './dom.js';
+import { confirmSheet, el, icon, isIOS, longPress, openSheet, swipeActions, toast, uid } from './dom.js';
 import { stockLow, syncStockAll, syncStockGone, syncStockOne } from './stock.js';
 import {
   addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockCount,
@@ -412,7 +412,17 @@ function runCheck(single) {
   const added = new Set();
   const jobs = [];
   const keep = (e) => e.preventDefault();
+  const vv = window.visualViewport;
+  let kbWas = false;
+  const onVv = () => {
+    const open = window.innerHeight - vv.height > 120;
+    if (kbWas && !open && document.querySelector('.stock-input')) closeCheck();
+    kbWas = open;
+  };
+  let closeCheck = () => {};
   openSheet(single && single.key ? 'Bestand eingeben' : 'Vorrat prüfen', (body, close) => {
+    closeCheck = close;
+    if (vv && !isIOS) vv.addEventListener('resize', onVv);
     body.closest('.sheet').classList.add('compact');
     const step = el('span', { class: 'hint stock-step' });
     const title = el('div', { class: 'stock-check-name' });
@@ -473,7 +483,7 @@ function runCheck(single) {
       el('div', { class: 'stock-entry' }, input, of, enough),
       el('div', { class: 'row between actions' }, back, next));
     show();
-  });
+  }, () => { if (vv) vv.removeEventListener('resize', onVv); });
   const i = document.querySelector('.stock-input');
   if (i) i.focus();
 }
