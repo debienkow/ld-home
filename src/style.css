@@ -543,3 +543,4 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .ev-note { margin: 4px 2px; }
 .ev-person { padding: 6px 2px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .ev-person .rsvp { font-size: .9rem; }
+@media (min-width: 960px) { .content > .page-head { margin-left: auto; margin-right: auto; } }

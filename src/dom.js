@@ -269,7 +269,13 @@ export function longPress(node, fn, ms = 480) {
   node.addEventListener('pointerdown', (e) => {
     if (e.button > 0) return;
     fired = false; x = e.clientX; y = e.clientY; stop();
-    t = setTimeout(() => { fired = true; if (navigator.vibrate) { try { navigator.vibrate(12); } catch (z) { /* ignorieren */ } } fn(); }, ms);
+    const pid = e.pointerId;
+    t = setTimeout(() => {
+      fired = true;
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (z) { /* ignorieren */ } }
+      node.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: pid }));
+      fn();
+    }, ms);
   });
   node.addEventListener('pointermove', (e) => { if (Math.abs(e.clientX - x) > 8 || Math.abs(e.clientY - y) > 8) stop(); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((n) => node.addEventListener(n, stop));

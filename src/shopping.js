@@ -237,7 +237,7 @@ function checkedText(withWho) {
   const who = withWho && state.settings.stockCheckedBy ? ` von ${userName(state.settings.stockCheckedBy)}` : '';
   return when + who;
 }
-const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', value: value ?? '', placeholder: placeholder || '', oninput: (e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== e.target.value) e.target.value = v; } });
+const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '4', autocomplete: 'off', value: value ?? '', placeholder: placeholder || '', oninput: (e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 4); if (v !== e.target.value) e.target.value = v; } });
 
 let fromList = false;
 const placeOf = (id) => state.settings.places.find((p) => p.id === id);
@@ -413,7 +413,7 @@ function runCheck(single) {
   const jobs = [];
   const keep = (e) => e.preventDefault();
   const vv = window.visualViewport;
-  let kbWas = false;
+  let kbWas = !!vv && window.innerHeight - vv.height > 120;
   const onVv = () => {
     const open = window.innerHeight - vv.height > 120;
     if (kbWas && !open && document.querySelector('.stock-input')) closeCheck();

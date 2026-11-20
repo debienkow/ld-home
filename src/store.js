@@ -148,7 +148,7 @@ export function startStore(user) {
 
   unsubs.push(
     onSnapshot(collection(db, 'catalog'), (snap) => {
-      state.learned = new Map(snap.docs.map((d) => [d.id, d.data()]));
+      state.learned = new Map(snap.docs.map((d) => [d.id, d.data()]).filter(([, v]) => typeof v.name === 'string' && v.name.trim()));
       state.shopLoaded.catalog = true;
       emit();
     }, snapError)
@@ -297,7 +297,7 @@ export const removeStock = (key) => {
 export const putStockItem = (key, data) =>
   settle(setDoc(doc(db, 'items', 'vorrat_' + key), { owner: '', done: false, doneAt: 0, ...data, ...stamp() }));
 export const setStockCount = (key, count, ok, at) =>
-  settle(setDoc(doc(db, 'catalog', key), { stock: { count: ok ? null : count, ok: !!ok, countAt: at || Date.now() } }, { merge: true }));
+  !state.learned.has(key) ? Promise.resolve() : settle(setDoc(doc(db, 'catalog', key), { stock: { count: ok ? null : count, ok: !!ok, countAt: at || Date.now() } }, { merge: true }));
 export const saveShopMeta = (patch) => settle(setDoc(doc(db, 'config', 'shopping'), patch, { merge: true }));
 
 export const myKey = () => (state.user && USERS[state.user.uid] ? USERS[state.user.uid].key : 'dudi');
