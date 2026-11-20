@@ -122,9 +122,10 @@ export function startStore(user) {
           stores: Array.isArray(d.stores) ? d.stores : DEFAULT_STORES,
           places: Array.isArray(d.places) ? d.places : DEFAULT_PLACES,
           doneMinutes: Number.isFinite(d.doneMinutes) && d.doneMinutes >= 0 ? d.doneMinutes : 60,
-          stockCheckedAt: d.stockCheckedAt || 0
+          stockCheckedAt: d.stockCheckedAt || 0,
+          stockCheckedBy: d.stockCheckedBy || ''
         };
-        if (!snap.metadata.fromCache) state.shopLoaded.settings = true;
+        state.shopLoaded.settings = true;
       } else if (!snap.metadata.fromCache) {
         state.shopLoaded.settings = true;
         setDoc(doc(db, 'config', 'shopping'), state.settings).catch(() => {});
@@ -136,7 +137,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(collection(db, 'items'), (snap) => {
       state.items = cleanItems(rows(snap)).filter(mine);
-      if (!snap.metadata.fromCache) state.shopLoaded.items = true;
+      state.shopLoaded.items = true;
       if (first.items && !snap.metadata.fromCache) {
         first.items = false;
         cleanupDone();
@@ -148,7 +149,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(collection(db, 'catalog'), (snap) => {
       state.learned = new Map(snap.docs.map((d) => [d.id, d.data()]));
-      if (!snap.metadata.fromCache) state.shopLoaded.catalog = true;
+      state.shopLoaded.catalog = true;
       emit();
     }, snapError)
   );

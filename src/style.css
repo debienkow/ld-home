@@ -516,3 +516,5 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .stock-row.red .stock-count b { color: #ff3b3b; }
 .stock-row.red .stock-count { color: #ff7a7a; }
 .fab:disabled { opacity: .45; }
+.stock-last { margin: -4px 4px 8px; font-size: .82rem; }
+@media (max-width: 699px) { .sheet-head { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; } }

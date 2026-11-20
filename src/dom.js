@@ -172,7 +172,7 @@ export function openSheet(title, buildContent, onClose) {
       if (viaBack === true) history.pushState({ ldSheet: true }, '');
       if (asking) return;
       asking = true;
-      confirmSheet('Wirklich verwerfen?', 'Deine Eingaben werden nicht gespeichert.', 'Verwerfen').then((ok) => { asking = false; if (ok) setTimeout(() => close(false, true), 60); });
+      confirmSheet('Wirklich verwerfen?', 'Deine Eingaben werden nicht gespeichert.', 'Verwerfen').then((ok) => { asking = false; if (ok) setTimeout(() => close(false, true), 60); else snapBack(); });
       return;
     }
     closed = true;
@@ -205,6 +205,34 @@ export function openSheet(title, buildContent, onClose) {
   document.body.classList.add('no-scroll');
   history.pushState({ ldSheet: true }, '');
   sheetStack.push(close);
+  /* Nach unten ziehen schließt (Handy) */
+  const head = sheet.querySelector('.sheet-head');
+  let y0 = null, dy = 0, t0 = 0;
+  const snapBack = () => { sheet.style.transition = 'transform .24s cubic-bezier(.2, .8, .2, 1)'; sheet.style.transform = ''; };
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button') || window.innerWidth >= 700 || sheet.classList.contains('viewer')) return;
+    e.preventDefault();
+    y0 = e.clientY; dy = 0; t0 = Date.now();
+    sheet.style.transition = 'none';
+    try { head.setPointerCapture(e.pointerId); } catch (x) { /* ignorieren */ }
+  });
+  head.addEventListener('pointermove', (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.clientY - y0);
+    sheet.style.transform = dy ? `translateY(${dy}px)` : '';
+  });
+  const release = () => {
+    if (y0 === null) return;
+    y0 = null;
+    const fast = dy > 40 && dy / Math.max(1, Date.now() - t0) > 0.6;
+    if (dy > 110 || fast) {
+      sheet.style.transition = 'transform .18s ease-in';
+      sheet.style.transform = 'translateY(110%)';
+      setTimeout(() => close(), 170);
+    } else snapBack();
+  };
+  head.addEventListener('pointerup', release);
+  head.addEventListener('pointercancel', release);
   buildContent(body, () => close(false, true));
   try { sheet.focus({ preventScroll: true }); } catch (x) { /* ignorieren */ }
   return () => close();

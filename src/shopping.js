@@ -2,7 +2,7 @@
 import { confirmSheet, el, icon, openSheet, swipeActions, toast, uid } from './dom.js';
 import {
   addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockCount,
-  showCatHeaders, state, stockEntries, stockKey, subscribe, updateItem
+  showCatHeaders, state, stockEntries, stockKey, subscribe, updateItem, userName
 } from './store.js';
 
 let selectedStore = '';
@@ -199,14 +199,13 @@ export function mountShopping(root) {
 
   function renderStockCard() {
     const list = stockEntries();
-    const low = list.filter((x) => isLow(x.stock));
     stockBox.replaceChildren(
       el('h3', { class: 'section-title' }, 'Vorrat'),
       el('button', { class: 'card stock-card', type: 'button', onclick: () => { fromList = true; location.hash = 'einkauf/vorrat'; } },
         el('span', { class: 'circle' , style: { background: 'var(--card-2)' } }, '📦'),
         el('span', { class: 'grow fin-main' },
           el('span', { class: 'item-name' }, 'Zum Vorratsplaner'),
-          el('span', { class: 'hint' }, list.length ? `${list.length} Artikel · letzte Prüfung: ${checkedText()}${low.length ? ` · ${low.length} nachkaufen` : ''}` : 'Vorrat einrichten')),
+          el('span', { class: 'hint' }, state.settings.stockCheckedAt ? `Stand: ${checkedText()}` : (list.length ? 'Noch nicht geprüft' : 'Vorrat einrichten'))),
         el('span', { class: 'chev' }, '›')));
   }
 
@@ -229,13 +228,13 @@ const stockSorted = () => {
   return stockEntries().sort((a, b) => (pIdx(a) - pIdx(b)) || (order.indexOf(catOf(a.categoryId).id) - order.indexOf(catOf(b.categoryId).id)) || a.name.localeCompare(b.name, 'de'));
 };
 const onList = (name) => state.items.some((i) => !i.done && norm(i.name) === norm(name));
-function checkedText() {
+function checkedText(withWho) {
   const t = state.settings.stockCheckedAt;
   if (!t) return 'noch nie';
   const d = new Date(t);
-  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
-  const rel = days === 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`;
-  return `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} (${rel})`;
+  const when = `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+  const who = withWho && state.settings.stockCheckedBy ? ` von ${userName(state.settings.stockCheckedBy)}` : '';
+  return when + who;
 }
 const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', value: value ?? '', placeholder: placeholder || '', oninput: (e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== e.target.value) e.target.value = v; } });
 
@@ -254,7 +253,7 @@ function mountStock(root) {
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Artikel suchen oder neu anlegen …', autocomplete: 'off', enterkeyhint: 'done' });
   const suggestBox = el('div', { class: 'suggest hidden' });
   const listBox = el('div');
-  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat aktualisieren', title: 'Vorrat aktualisieren', onclick: () => runCheck() }, icon('check'));
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat aktualisieren', title: 'Vorrat aktualisieren', onclick: () => runCheck() }, icon('refresh'));
   const open = (entry, preset) => { search.value = ''; renderSuggest(); search.blur(); openStockItem(entry, preset); };
 
   function renderSuggest() {
@@ -300,9 +299,7 @@ function mountStock(root) {
         el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`))];
     });
     listBox.replaceChildren(
-      el('div', { class: 'stock-head card' },
-        el('span', { class: 'hint' }, 'Letzte Prüfung'),
-        el('strong', null, checkedText())),
+      el('p', { class: 'hint stock-last' }, `Letzte Prüfung: ${checkedText(true)}`),
       ...(rows.length ? rows : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Tippe oben einen Artikel ein, den ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]));
     if (search.value.trim()) renderSuggest();
   };
@@ -411,7 +408,7 @@ function runCheck() {
     const back = el('button', { class: 'btn ghost', type: 'button', onmousedown: keep, onclick: () => { if (idx > 0) { idx--; show(); } } }, 'Zurück');
     const next = el('button', { class: 'btn primary', type: 'button', onmousedown: keep, onclick: () => confirm() });
     const finish = () => {
-      saveShopMeta({ stockCheckedAt: Date.now() });
+      saveShopMeta({ stockCheckedAt: Date.now(), stockCheckedBy: state.user.uid });
       close();
       toast(added.length ? `Vorrat geprüft. Auf die Einkaufsliste: ${added.join(', ')}` : 'Vorrat geprüft. Alles ausreichend da.', { ms: 6000 });
     };
