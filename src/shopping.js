@@ -1,5 +1,6 @@
 /* Tab Einkauf */
-import { confirmSheet, el, icon, openSheet, swipeActions, toast, uid } from './dom.js';
+import { confirmSheet, el, icon, longPress, openSheet, swipeActions, toast, uid } from './dom.js';
+import { stockLow, syncStockAll, syncStockGone, syncStockOne } from './stock.js';
 import {
   addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockCount,
   showCatHeaders, state, stockEntries, stockKey, subscribe, updateItem, userName
@@ -134,11 +135,11 @@ export function mountShopping(root) {
     const cat = catOf(item.categoryId);
     const store = storeOf(item.store);
     const inner = el('div', { class: 'item' + (done ? ' done' : '') },
-      el('button', { class: 'item-main', type: 'button', onclick: () => openItemSheet(item) },
+      longPress(el('button', { class: 'item-main', type: 'button', title: 'Tippen: abhaken · lange drücken: bearbeiten', onclick: () => setDone(item.id, !done) },
         iconCircle(cat),
         el('span', { class: 'item-name' }, `${item.owner ? '🔒 ' : ''}${item.name}`),
         item.qty && el('span', { class: 'pill' }, item.qty),
-        store && el('span', { class: 'tag' }, store.name)),
+        store && el('span', { class: 'tag' }, store.name)), () => openItemSheet(item)),
       el('button', { class: 'check-btn' + (done ? ' on' : ''), type: 'button', 'aria-label': done ? `${item.name} wieder auf die Liste` : `${item.name} abhaken`, onclick: () => { setDone(item.id, !done); } }, icon(done ? 'undo' : 'check'))
     );
     return swipeActions(inner, { onLeft: () => drop(item), onRight: () => setDone(item.id, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
@@ -169,7 +170,7 @@ export function mountShopping(root) {
       blocks.push(...(showCatHeaders() ? [el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name)] : []), ...inCat.map((i) => row(i, false)));
     }
     renderStockCard();
-    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore === '__mine' ? 'Keine privaten Artikel. Artikel antippen und „Nur für mich anzeigen“ wählen.' : selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
+    listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore === '__mine' ? 'Keine privaten Artikel. Artikel lange drücken und „Nur für mich anzeigen“ wählen.' : selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
     if (search.value.trim()) renderSuggest();
   }
 
@@ -220,7 +221,7 @@ export function mountShopping(root) {
 
 /* Vorrat */
 const num = (v) => { const n = parseInt(String(v).replace(/\D/g, ''), 10); return Number.isFinite(n) ? n : null; };
-const isLow = (s) => s && Number.isFinite(s.count) && s.count <= (s.min || 0);
+const isLow = stockLow;
 const stockSorted = () => {
   const order = state.settings.categories.map((c) => c.id);
   const places = state.settings.places.map((p) => p.id);
@@ -243,17 +244,28 @@ const placeOf = (id) => state.settings.places.find((p) => p.id === id);
 
 /* Vorratsplaner als eigene Seite im Einkauf */
 const levelOf = (s) => {
+  if (s.ok) return ' green';
   if (!Number.isFinite(s.count)) return '';
-  if (s.count < (s.min || 0) * 0.5) return ' red';
-  if (s.count < (s.target || 0)) return ' yellow';
-  return '';
+  const m = s.min || 0;
+  if (s.count <= m * 0.5) return ' red';
+  if (s.count <= m) return ' yellow';
+  return ' green';
 };
+const countText = (s) => (s.ok ? '✓' : Number.isFinite(s.count) ? String(s.count) : '–');
 function mountStock(root) {
   const back = () => { if (fromList) { fromList = false; history.back(); } else location.hash = 'einkauf'; };
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Artikel suchen oder neu anlegen …', autocomplete: 'off', enterkeyhint: 'done' });
   const suggestBox = el('div', { class: 'suggest hidden' });
   const listBox = el('div');
-  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat aktualisieren', title: 'Vorrat aktualisieren', onclick: () => runCheck() }, icon('refresh'));
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat prüfen', title: 'Vorrat prüfen', onclick: () => runCheck() }, icon('search'));
+  const fabSync = el('button', { class: 'fab left', type: 'button', 'aria-label': 'Einkaufsliste abgleichen', title: 'Einkaufsliste abgleichen', onclick: async () => {
+    fabSync.disabled = true;
+    try {
+      const r = await syncStockAll();
+      const parts = [r.added && `${r.added} hinzugefügt`, r.updated && `${r.updated} geändert`, r.removed && `${r.removed} entfernt`].filter(Boolean);
+      toast(parts.length ? `Einkaufsliste abgeglichen: ${parts.join(', ')}.` : 'Einkaufsliste ist schon aktuell.');
+    } finally { fabSync.disabled = false; }
+  } }, icon('refresh'));
   const open = (entry, preset) => { search.value = ''; renderSuggest(); search.blur(); openStockItem(entry, preset); };
 
   function renderSuggest() {
@@ -291,12 +303,12 @@ function mountStock(root) {
       const pl = placeOf(s.place);
       const head = (pl ? pl.id : '') !== lastPlace ? [el('h3', { class: 'section-title place' }, pl ? `📍 ${pl.name}` : 'Ohne Lagerort')] : [];
       lastPlace = pl ? pl.id : '';
-      return [...head, el('button', { class: 'item fin-row stock-row' + lvl, type: 'button', onclick: () => openStockItem(x) },
+      return [...head, longPress(el('button', { class: 'item fin-row stock-row' + lvl, type: 'button', title: 'Tippen: Bestand eingeben · lange drücken: bearbeiten', onclick: () => runCheck(x) },
         iconCircle(catOf(x.categoryId)),
         el('span', { class: 'grow fin-main' },
           el('span', { class: 'item-name' }, x.name),
           el('span', { class: 'hint' }, `Nachkaufen ab ${s.min || 0}${onList(x.name) ? ' · steht auf der Liste' : ''}`)),
-        el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`))];
+        el('span', { class: 'stock-count' }, el('b', null, countText(s)), ` / ${s.target || 0}`)), () => openStockItem(x))];
     });
     listBox.replaceChildren(
       el('p', { class: 'hint stock-last' }, `Letzte Prüfung: ${checkedText(true)}`),
@@ -308,7 +320,7 @@ function mountStock(root) {
       el('button', { class: 'icon-btn back-btn', type: 'button', 'aria-label': 'Zurück zum Einkauf', onclick: back }, '‹'),
       el('h2', null, 'Vorratsplaner')),
     el('div', { class: 'search-wrap' }, search),
-    suggestBox, listBox, fab);
+    suggestBox, listBox, fabSync, fab);
   draw();
   return subscribe(draw);
 }
@@ -369,7 +381,7 @@ function openStockItem(entry, preset) {
       err,
       el('div', { class: 'row between actions' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          if (await confirmSheet('Aus dem Vorrat entfernen?', `„${entry.name}“ wird aus der Vorratsliste entfernt. Die Einkaufsliste bleibt unverändert.`, 'Entfernen')) { await removeStock(entry.key); saved = true; close(); }
+          if (await confirmSheet('Aus dem Vorrat entfernen?', `„${entry.name}“ wird aus der Vorratsliste entfernt. Ein automatisch angelegter Eintrag auf der Einkaufsliste wird mit entfernt.`, 'Entfernen')) { await removeStock(entry.key); saved = true; close(); syncStockGone(entry.name); }
         } }, 'Entfernen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: async () => {
           const n = name.value.trim();
@@ -380,65 +392,85 @@ function openStockItem(entry, preset) {
           const key = stockKey(n);
           const other = state.learned.get(key);
           if (other && other.stock && (!entry || entry.key !== key)) return (err.textContent = 'Dieser Artikel steht schon im Vorrat.');
-          await saveStock(entry && entry.key, n, cat.value, { target: t, min: m, place: place.value || '', store: store.value || '' });
+          const data = { target: t, min: m, place: place.value || '', store: store.value || '' };
+          const newKey = await saveStock(entry && entry.key, n, cat.value, data);
           saved = true;
           close();
+          if (entry && norm(entry.name) !== norm(n)) await syncStockGone(entry.name);
+          await syncStockOne({ key: newKey, name: n, categoryId: cat.value, stock: { ...s, ...data } });
         } }, entry ? 'Speichern' : '✓ Zum Vorrat hinzufügen'))
     );
   });
 }
 
 /* Vorrat prüfen: Artikel für Artikel nur die Zahl eingeben */
-function runCheck() {
-  const list = stockSorted();
+function runCheck(single) {
+  const list = single && single.key ? [single] : stockSorted();
   if (!list.length) return;
   let idx = 0;
   const entered = new Map();
-  const added = [];
+  const added = new Set();
+  const jobs = [];
   const keep = (e) => e.preventDefault();
-  openSheet('Vorrat prüfen', (body, close) => {
-    const step = el('p', { class: 'hint stock-step' });
+  openSheet(single && single.key ? 'Bestand eingeben' : 'Vorrat prüfen', (body, close) => {
+    body.closest('.sheet').classList.add('compact');
+    const step = el('span', { class: 'hint stock-step' });
     const title = el('div', { class: 'stock-check-name' });
+    const sub = el('span', { class: 'hint stock-sub' });
     const input = numInput('', '');
     input.classList.add('stock-input');
     input.setAttribute('enterkeyhint', 'next');
     input.setAttribute('aria-label', 'Bestand');
+    input.dataset.nokb = '1';
     const of = el('span', { class: 'stock-of' });
-    const info = el('p', { class: 'hint' });
+    const enough = el('button', { class: 'btn ghost stock-ok', type: 'button', onmousedown: keep, onclick: () => confirm(true) }, '✓ Genug da');
     const back = el('button', { class: 'btn ghost', type: 'button', onmousedown: keep, onclick: () => { if (idx > 0) { idx--; show(); } } }, 'Zurück');
-    const next = el('button', { class: 'btn primary', type: 'button', onmousedown: keep, onclick: () => confirm() });
-    const finish = () => {
-      saveShopMeta({ stockCheckedAt: Date.now(), stockCheckedBy: state.user.uid });
+    const next = el('button', { class: 'btn primary', type: 'button', onmousedown: keep, onclick: () => confirm(false) });
+    const finish = async () => {
       close();
-      toast(added.length ? `Vorrat geprüft. Auf die Einkaufsliste: ${added.join(', ')}` : 'Vorrat geprüft. Alles ausreichend da.', { ms: 6000 });
+      await Promise.all(jobs).catch(() => {});
+      if (list.length === 1 && single && single.key) {
+        if (added.size) toast(`${list[0].name} steht auf der Einkaufsliste.`);
+        return;
+      }
+      saveShopMeta({ stockCheckedAt: Date.now(), stockCheckedBy: state.user.uid });
+      toast(added.size ? `Vorrat geprüft. Auf der Einkaufsliste: ${[...added].join(', ')}` : 'Vorrat geprüft. Alles ausreichend da.', { ms: 6000 });
     };
     function show() {
       const x = list[idx];
       const s = x.stock;
       const pl = placeOf(s.place);
-      step.textContent = `${idx + 1} von ${list.length}${pl ? ` · 📍 ${pl.name}` : ''}`;
-      title.replaceChildren(iconCircle(catOf(x.categoryId)), el('span', null, x.name));
+      step.textContent = `${list.length > 1 ? `${idx + 1} von ${list.length}` : ''}${list.length > 1 && pl ? ' · ' : ''}${pl ? `📍 ${pl.name}` : ''}`;
+      title.replaceChildren(iconCircle(catOf(x.categoryId), 'small'), el('span', null, x.name));
+      sub.textContent = `Nachkaufen ab ${s.min || 0}${s.ok ? ' · zuletzt genug da' : Number.isFinite(s.count) ? ` · zuletzt ${s.count}` : ''}`;
       of.textContent = `/ ${s.target || 0}`;
-      info.textContent = `Nachkaufen ab ${s.min || 0}${Number.isFinite(s.count) ? ` · zuletzt ${s.count}` : ''}. Leer lassen überspringt.`;
-      input.value = entered.has(x.key) ? String(entered.get(x.key)) : '';
+      const prev = entered.get(x.key);
+      input.value = typeof prev === 'number' ? String(prev) : '';
+      input.placeholder = prev === 'ok' ? '✓' : '';
       back.disabled = idx === 0;
-      next.replaceChildren(idx === list.length - 1 ? '✓ Fertig' : '✓ Weiter');
+      back.classList.toggle('hidden', list.length === 1);
+      next.replaceChildren(list.length === 1 ? '✓ Speichern' : idx === list.length - 1 ? '✓ Fertig' : '✓ Weiter');
       input.focus({ preventScroll: true });
     }
-    function confirm() {
+    function confirm(ok) {
       const x = list[idx];
-      const n = num(input.value);
-      if (n !== null) {
-        entered.set(x.key, n);
-        setStockCount(x.key, n);
-        if (n <= (x.stock.min || 0)) { if (!added.includes(x.name)) added.push(x.name); }
-        else { const i = added.indexOf(x.name); if (i >= 0) added.splice(i, 1); }
+      const n = ok ? null : num(input.value);
+      if (ok || n !== null) {
+        const at = Date.now();
+        entered.set(x.key, ok ? 'ok' : n);
+        setStockCount(x.key, n, ok, at);
+        const stock = { ...x.stock, count: ok ? null : n, ok: !!ok, countAt: at };
+        x.stock = stock;
+        jobs.push(syncStockOne({ ...x, stock }).then((r) => { if (r === 'added' || r === 'updated' || r === 'listed') added.add(x.name); else added.delete(x.name); }));
       }
       if (idx >= list.length - 1) return finish();
       idx++;
       show();
     }
-    body.append(step, title, el('div', { class: 'stock-entry' }, input, of), info,
+    body.append(
+      el('div', { class: 'stock-check-top' }, title, step),
+      sub,
+      el('div', { class: 'stock-entry' }, input, of, enough),
       el('div', { class: 'row between actions' }, back, next));
     show();
   });

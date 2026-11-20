@@ -511,6 +511,7 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
   .sheet.tall .sheet-body > .actions { margin-top: auto; }
 }
 
+.stock-row.green .stock-count b { color: #2ee06b; }
 .stock-row.yellow .stock-count b { color: #f5c542; }
 .stock-row.red { box-shadow: inset 4px 0 0 #ff3b3b; }
 .stock-row.red .stock-count b { color: #ff3b3b; }
@@ -518,3 +519,22 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .fab:disabled { opacity: .45; }
 .stock-last { margin: -4px 4px 8px; font-size: .82rem; }
 @media (max-width: 699px) { .sheet-head { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; } }
+
+/* Vorrat prüfen: kompakt, nah an der Tastatur */
+.sheet.compact .sheet-head { padding: 12px 10px 2px 18px; }
+.sheet.compact .sheet-head h2 { font-size: 1rem; }
+.sheet.compact .sheet-body { gap: 8px; padding-top: 4px; }
+.stock-check-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stock-check-name { font-size: 1.15rem; gap: 10px; min-width: 0; }
+.stock-check-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stock-step { flex: none; font-size: .8rem; }
+.stock-sub { font-size: .82rem; margin-top: -4px; }
+.stock-entry { gap: 10px; }
+.stock-entry .stock-input { width: 5.5rem; font-size: 1.5rem !important; padding: 8px; }
+.stock-of { font-size: 1.2rem; }
+.stock-ok { margin-left: auto; white-space: nowrap; }
+.fab.left { right: auto; left: max(18px, env(safe-area-inset-left)); }
+@media (min-width: 700px) { .fab.left { left: 32px; } }
+@media (min-width: 960px) { .fab.left { left: calc(var(--side, 240px) + 32px); } }
+.lp { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.sheet.compact .actions .btn.primary { margin-left: auto; }

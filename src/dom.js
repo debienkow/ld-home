@@ -45,6 +45,7 @@ const ICONS = {
   eyeOff: '<path d="M4 4l16 16"/><path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3.2 3.9M6.2 7.6A16 16 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9 9 0 0 0 4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
   wrench: '<path d="M14.8 5.2a4.5 4.5 0 0 0-5.9 5.6L3.8 15.9a1.9 1.9 0 0 0 2.7 2.7l5.1-5.1a4.5 4.5 0 0 0 5.6-5.9l-2.7 2.7-2.3-.4-.4-2.3z"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>',
   undo: '<path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>'
@@ -132,7 +133,7 @@ const typable = (t) => t && ((t.tagName === 'INPUT' && !/^(checkbox|radio|button
 if (touchUi) {
   document.addEventListener('focusin', (e) => {
     const t = e.target;
-    if (!typable(t)) return;
+    if (!typable(t) || t.dataset.nokb === '1') return;
     const sheet = t.closest('.sheet');
     if (!sheet) return;
     const anchor = t.closest('.tag-input, .place-field, label, .field') || t;
@@ -232,10 +233,50 @@ export function openSheet(title, buildContent, onClose) {
     } else snapBack();
   };
   head.addEventListener('pointerup', release);
+  const NOSWIPE = 'input, select, textarea, button, a, .swipe, .chips, .suggest, .cal, [contenteditable]';
+  let ty = null, tdrag = false;
+  sheet.addEventListener('touchstart', (e) => {
+    ty = null; tdrag = false;
+    if (e.touches.length !== 1 || window.innerWidth >= 700 || sheet.classList.contains('viewer') || head.contains(e.target) || e.target.closest(NOSWIPE)) return;
+    if (sheet.scrollTop > 0) return;
+    ty = e.touches[0].clientY; t0 = Date.now();
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (ty === null) return;
+    const d = e.touches[0].clientY - ty;
+    if (!tdrag) {
+      if (d < 0 || sheet.scrollTop > 0) { ty = null; return; }
+      if (d < 14) return;
+      tdrag = true; sheet.style.transition = 'none';
+    }
+    e.preventDefault();
+    dy = Math.max(0, d - 14);
+    sheet.style.transform = dy ? `translateY(${dy}px)` : '';
+  }, { passive: false });
+  const tend = () => { if (ty === null) return; ty = null; if (!tdrag) return; tdrag = false; y0 = 0; release(); };
+  sheet.addEventListener('touchend', tend);
+  sheet.addEventListener('touchcancel', tend);
   head.addEventListener('pointercancel', release);
   buildContent(body, () => close(false, true));
   try { sheet.focus({ preventScroll: true }); } catch (x) { /* ignorieren */ }
   return () => close();
+}
+
+/* Langes Drücken (statt Tippen) */
+export function longPress(node, fn, ms = 480) {
+  let t = 0, x = 0, y = 0, fired = false;
+  const stop = () => clearTimeout(t);
+  node.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    fired = false; x = e.clientX; y = e.clientY; stop();
+    t = setTimeout(() => { fired = true; if (navigator.vibrate) { try { navigator.vibrate(12); } catch (z) { /* ignorieren */ } } fn(); }, ms);
+  });
+  node.addEventListener('pointermove', (e) => { if (Math.abs(e.clientX - x) > 8 || Math.abs(e.clientY - y) > 8) stop(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((n) => node.addEventListener(n, stop));
+  node.addEventListener('click', (e) => { if (fired) { fired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  node.addEventListener('contextmenu', (e) => e.preventDefault());
+  node.classList.add('lp');
+  return node;
 }
 
 /* Ja/Nein-Rückfrage */
