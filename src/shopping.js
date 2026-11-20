@@ -486,7 +486,9 @@ function runCheck(single) {
       el('div', { class: 'stock-check-top' }, title, step),
       sub,
       el('div', { class: 'stock-entry' }, input, of, enough),
-      el('div', { class: 'row between actions' }, back, next));
+      el('div', { class: 'row between actions' }, back,
+        single && single.key ? el('button', { class: 'btn ghost stock-edit', type: 'button', onclick: () => { close(); setTimeout(() => openStockItem(single), 0); } }, '⚙ Artikel bearbeiten') : null,
+        next));
     show();
   }, () => { if (vv) vv.removeEventListener('resize', onVv); });
   const i = document.querySelector('.stock-input');
