@@ -14,6 +14,7 @@ const blank = () => ({
   user: null,
   items: [],
   learned: new Map(),
+  shopLoaded: { items: false, catalog: false, settings: false },
   settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES, places: DEFAULT_PLACES, doneMinutes: 60, stockCheckedAt: 0 },
   profiles: {},
   fin: {
@@ -123,7 +124,9 @@ export function startStore(user) {
           doneMinutes: Number.isFinite(d.doneMinutes) && d.doneMinutes >= 0 ? d.doneMinutes : 60,
           stockCheckedAt: d.stockCheckedAt || 0
         };
+        if (!snap.metadata.fromCache) state.shopLoaded.settings = true;
       } else if (!snap.metadata.fromCache) {
+        state.shopLoaded.settings = true;
         setDoc(doc(db, 'config', 'shopping'), state.settings).catch(() => {});
       }
       emit();
@@ -133,6 +136,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(collection(db, 'items'), (snap) => {
       state.items = cleanItems(rows(snap)).filter(mine);
+      if (!snap.metadata.fromCache) state.shopLoaded.items = true;
       if (first.items && !snap.metadata.fromCache) {
         first.items = false;
         cleanupDone();
@@ -144,6 +148,7 @@ export function startStore(user) {
   unsubs.push(
     onSnapshot(collection(db, 'catalog'), (snap) => {
       state.learned = new Map(snap.docs.map((d) => [d.id, d.data()]));
+      if (!snap.metadata.fromCache) state.shopLoaded.catalog = true;
       emit();
     }, snapError)
   );
@@ -288,6 +293,10 @@ export const removeStock = (key) => {
   if (!cur) return Promise.resolve();
   return settle(cur.stockOnly ? deleteDoc(doc(db, 'catalog', key)) : setDoc(doc(db, 'catalog', key), { stock: deleteField() }, { merge: true }));
 };
+export const putStockItem = (key, data) =>
+  settle(setDoc(doc(db, 'items', 'vorrat_' + key), { owner: '', done: false, doneAt: 0, ...data, ...stamp() }));
+export const markStockListed = (key, countAt) =>
+  settle(setDoc(doc(db, 'catalog', key), { stock: { listedFor: countAt || 0 } }, { merge: true }));
 export const setStockCount = (key, count) =>
   settle(setDoc(doc(db, 'catalog', key), { stock: { count, countAt: Date.now() } }, { merge: true }));
 export const saveShopMeta = (patch) => settle(setDoc(doc(db, 'config', 'shopping'), patch, { merge: true }));

@@ -17,6 +17,7 @@ import { mountDms } from './dms.js';
 import { startGcalSync } from './gcal.js';
 import { startPull } from './pull.js';
 import { startDeadlineSync } from './companies.js';
+import { startStockSync } from './stock.js';
 let pullOn = false;
 
 const root = document.getElementById('app');
@@ -117,7 +118,7 @@ onAuthStateChanged(auth, (user) => {
     startStore(user);
     renderShell();
     startGcalSync();
-    if (!pullOn) { pullOn = true; startPull(); startDeadlineSync(); }
+    if (!pullOn) { pullOn = true; startPull(); startDeadlineSync(); startStockSync(); }
   }
 });
 

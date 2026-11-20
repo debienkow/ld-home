@@ -434,13 +434,8 @@ function runCheck() {
       if (n !== null) {
         entered.set(x.key, n);
         setStockCount(x.key, n);
-        const need = Math.max(1, (x.stock.target || 0) - n);
-        const open = state.items.find((i) => !i.done && norm(i.name) === norm(x.name));
-        if (n <= (x.stock.min || 0)) {
-          if (!open && !added.includes(x.name)) addItem({ name: x.name, qty: `Vorrat ${need}`, categoryId: x.categoryId, store: x.stock.store || null });
-          else if (/^Vorrat\b/.test(open.qty || '')) updateItem(open.id, { qty: `Vorrat ${need}` });
-          if (!added.includes(x.name)) added.push(x.name);
-        } else if (open && /^Vorrat\b/.test(open.qty || '')) updateItem(open.id, { qty: `Vorrat ${need}` });
+        if (n <= (x.stock.min || 0)) { if (!added.includes(x.name)) added.push(x.name); }
+        else { const i = added.indexOf(x.name); if (i >= 0) added.splice(i, 1); }
       }
       if (idx >= list.length - 1) return finish();
       idx++;
