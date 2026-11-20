@@ -1,7 +1,13 @@
 /* Beispieldaten für den Demo-Modus */
 const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('sv-SE'); };
 export function seed() {
-  const items = Object.fromEntries([['Milch', 'milch'], ['Brot', 'brot'], ['Äpfel', 'obst'], ['Spülmittel', 'haushalt']].map(([name, categoryId], i) => ['i' + i, { name, qty: '', categoryId, store: null, done: i === 3, doneAt: i === 3 ? Date.now() : 0, createdAt: Date.now() + i }]));
+  const items = Object.fromEntries([['Milch', 'milch'], ['Brot', 'brot'], ['Äpfel', 'obst'], ['Spülmittel', 'haushalt'], ['Butter', 'milch']].map(([name, categoryId], i) => ['i' + i, { name, qty: '', categoryId, store: null, done: i >= 3, doneAt: i === 3 ? Date.now() : i === 4 ? Date.now() - 2 * 3600000 : 0, createdAt: Date.now() + i }]));
+  const catalog = {
+    hafermilch: { name: 'Hafermilch', categoryId: 'milch', stockOnly: true, stock: { target: 8, min: 2, unit: 'Packungen', count: 3, countAt: Date.now() - 6 * 86400000 } },
+    toilettenpapier: { name: 'Toilettenpapier', categoryId: 'haushalt', stockOnly: true, stock: { target: 2, min: 1, unit: 'Pakete', count: 2 } },
+    'küchenrolle': { name: 'Küchenrolle', categoryId: 'haushalt', stockOnly: true, stock: { target: 4, min: 1, unit: 'Rollen' } }
+  };
+  const past = Object.fromEntries(Array.from({ length: 23 }, (_, i) => ['old' + i, { title: `Alter Termin ${i + 1}`, categoryId: 'treffen', start: iso(-3 - i * 9), end: iso(-3 - i * 9), allDay: true, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes' }, createdAt: Date.now() }]));
   const e = (id, type, date, title, cents, payer, categoryId, extra = {}) => [id, { type, date, time: '', title, cents, payer, categoryId, noSplit: false, note: '', createdAt: Date.now(), ...extra }];
   const fin = Object.fromEntries([
     e('f1', 'expense', iso(-20), 'Lidl', 4520, 'dudi', 'supermarkt'), e('f2', 'expense', iso(-12), 'REWE', 2310, 'logi', 'supermarkt'),
@@ -15,10 +21,11 @@ export function seed() {
     v4: { title: 'Arbeitsurlaub Dudi', categoryId: 'arbeitsurlaub', who: 'dudi', start: iso(3), end: iso(16), allDay: true, participants: [], rsvp: {}, createdAt: Date.now() },
     v5: { title: 'Grillen bei Anna', categoryId: 'treffen', start: iso(5), end: iso(5), allDay: false, startTime: '18:00', endTime: '22:00', participants: ['dudi', 'logi'], rsvp: { dudi: 'yes', logi: 'yes' }, guests: ['Anna', 'Tim'], grsvp: { Anna: 'yes', Tim: '' }, createdAt: Date.now() },
     v2: { title: 'Urlaub Ostsee', categoryId: 'urlaub', start: iso(40), end: iso(46), allDay: true, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes', logi: 'maybe' }, vacation: ['dudi', 'logi'], important: false, createdAt: Date.now() },
+    ...past,
     v3: { title: 'Hochzeit Anna & Tim', categoryId: 'feier', start: iso(220), end: iso(220), allDay: true, participants: ['dudi', 'logi'], rsvp: { logi: 'yes' }, vacation: [], important: false, createdAt: Date.now() }
   };
   return {
-    items, catalog: {}, profiles: {}, fin_entries: fin, fin_recurring: rec, config: { finance: { salaries: { logi: 219373, dudi: 237298 } }, dms: { companies: [
+    items, catalog, profiles: {}, fin_entries: fin, fin_recurring: rec, config: { finance: { salaries: { logi: 219373, dudi: 237298 } }, dms: { companies: [
       { id: 'cw', name: 'Willy.Tel', aliases: ['Willytel', 'Internet'], customerNo: 'K-123456', phone: '040 5555 0000', email: 'service@example.com', web: 'example.com/kundenportal', login: 'dudi.beispiel', address: '', note: 'Tarif 250 Mbit', fields: [{ label: 'Router', value: 'FritzBox 7590' }],
         contracts: [{ id: 'k1', name: 'Internet 250', number: 'V-998877', start: '2025-01-20', end: '' + iso(45) + '', notice: 1, unit: 'm', renew: 12, remind: 30, amount: '39,90 € / Monat' }] },
       { id: 'ce', name: 'E-Primo', aliases: ['Strom'], customerNo: '7700-1', phone: '', email: '', web: '', login: '', address: '', note: '', fields: [], contracts: [{ id: 'k2', name: 'Strom 2026–2027', number: 'S-2026', start: '2026-06-01', end: '2027-05-31', notice: 6, unit: 'w', renew: 0, remind: 30, amount: '' }, { id: 'k3', name: 'Strom 2025–2026', number: 'S-2025', start: '2025-06-01', end: '2026-05-31', notice: 6, unit: 'w', renew: 0, remind: 30, amount: '' }] },

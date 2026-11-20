@@ -1,6 +1,6 @@
 /* Gemeinsame Daten (Echtzeit aus Firestore) */
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where, writeBatch
+  collection, deleteDoc, deleteField, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where, writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase.js';
 import { USERS } from './config.js';
@@ -14,7 +14,7 @@ const blank = () => ({
   user: null,
   items: [],
   learned: new Map(),
-  settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES },
+  settings: { categories: DEFAULT_CATEGORIES, stores: DEFAULT_STORES, doneMinutes: 60, stockCheckedAt: 0 },
   profiles: {},
   fin: {
     entries: [],
@@ -118,7 +118,9 @@ export function startStore(user) {
         const d = snap.data();
         state.settings = {
           categories: listOr(d.categories, DEFAULT_CATEGORIES),
-          stores: Array.isArray(d.stores) ? d.stores : DEFAULT_STORES
+          stores: Array.isArray(d.stores) ? d.stores : DEFAULT_STORES,
+          doneMinutes: Number.isFinite(d.doneMinutes) && d.doneMinutes >= 0 ? d.doneMinutes : 60,
+          stockCheckedAt: d.stockCheckedAt || 0
         };
       } else if (!snap.metadata.fromCache) {
         setDoc(doc(db, 'config', 'shopping'), state.settings).catch(() => {});
@@ -266,7 +268,28 @@ const catalogId = (name) => {
   return /^\.+$|^__.*__$/.test(id) || !id ? `x-${id}` : id;
 };
 export const learn = (name, categoryId) =>
-  settle(setDoc(doc(db, 'catalog', catalogId(name)), { name: name.trim(), categoryId }));
+  settle(setDoc(doc(db, 'catalog', catalogId(name)), { name: name.trim(), categoryId, stockOnly: deleteField() }, { merge: true }));
+
+/* Vorrat: hängt als Feld stock am Katalog-Artikel */
+export const stockKey = catalogId;
+export const stockEntries = () => [...state.learned.entries()].filter(([, v]) => v.stock).map(([key, v]) => ({ ...v, key }));
+export async function saveStock(oldKey, name, categoryId, stock) {
+  const key = catalogId(name);
+  const isNew = !state.learned.has(key);
+  const prev = oldKey && state.learned.get(oldKey);
+  const merged = { ...((prev && prev.stock) || {}), ...stock };
+  await settle(setDoc(doc(db, 'catalog', key), { name: name.trim(), categoryId, stock: merged, ...(isNew ? { stockOnly: true } : {}) }, { merge: true }));
+  if (oldKey && oldKey !== key) await removeStock(oldKey);
+  return key;
+}
+export const removeStock = (key) => {
+  const cur = state.learned.get(key);
+  if (!cur) return Promise.resolve();
+  return settle(cur.stockOnly ? deleteDoc(doc(db, 'catalog', key)) : setDoc(doc(db, 'catalog', key), { stock: deleteField() }, { merge: true }));
+};
+export const setStockCount = (key, count) =>
+  settle(setDoc(doc(db, 'catalog', key), { stock: { count, countAt: Date.now() } }, { merge: true }));
+export const saveShopMeta = (patch) => settle(setDoc(doc(db, 'config', 'shopping'), patch, { merge: true }));
 
 export const myKey = () => (state.user && USERS[state.user.uid] ? USERS[state.user.uid].key : 'dudi');
 export const uidOfKey = (key) => Object.keys(USERS).find((u) => USERS[u].key === key);
@@ -280,7 +303,7 @@ export const saveRecurring = (id, data) =>
 export const removeRecurring = (id) => settle(deleteDoc(doc(db, 'fin_recurring', id)));
 export const saveFinConfig = (patch) => settle(setDoc(doc(db, 'config', 'finance'), patch, { merge: true }));
 
-export const saveSettings = (settings) => settle(setDoc(doc(db, 'config', 'shopping'), settings));
+export const saveSettings = (settings) => settle(setDoc(doc(db, 'config', 'shopping'), settings, { merge: true }));
 export const saveProfile = (patch) => settle(setDoc(doc(db, 'profiles', state.user.uid), patch, { merge: true }));
 export const saveProfilePhoto = (dataUrl) => saveProfile({ photo: dataUrl });
 

@@ -1,7 +1,8 @@
 /* Tab Einkauf */
-import { el, icon, openSheet, swipeActions, toast, uid } from './dom.js';
+import { confirmSheet, el, icon, openSheet, swipeActions, toast, uid } from './dom.js';
 import {
-  addItem, catalogEntries, learn, norm, removeItem, restoreItem, saveProfile, saveSettings, setDone, showCatHeaders, state, subscribe, updateItem
+  addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockCount,
+  showCatHeaders, state, stockEntries, stockKey, subscribe, updateItem
 } from './store.js';
 
 let selectedStore = '';
@@ -51,6 +52,8 @@ export function mountShopping(root) {
   const chips = el('div', { class: 'chips' });
   const doneBox = el('div');
   const listBox = el('div');
+  const stockBox = el('div');
+  let expiryTimer = null;
 
   /* Artikel hinzufügen */
   const add = (name, qty, categoryId) => {
@@ -67,6 +70,7 @@ export function mountShopping(root) {
       suggestBox.classList.add('hidden');
       listBox.classList.remove('hidden');
       doneBox.classList.remove('hidden');
+      stockBox.classList.remove('hidden');
       return;
     }
     const { name, qty } = parseInput(raw);
@@ -89,6 +93,7 @@ export function mountShopping(root) {
     suggestBox.classList.remove('hidden');
     listBox.classList.add('hidden');
     doneBox.classList.add('hidden');
+    stockBox.classList.add('hidden');
   }
 
   search.addEventListener('input', renderSuggest);
@@ -142,7 +147,14 @@ export function mountShopping(root) {
     if (selectedStore && selectedStore !== '__mine' && !storeOf(selectedStore)) selectedStore = '';
     renderChips();
     const items = state.items;
-    const doneItems = items.filter((i) => i.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 12);
+    const keepMs = (state.settings.doneMinutes ?? 60) * 60000;
+    const now = Date.now();
+    const doneItems = items.filter((i) => i.done && (!keepMs || (i.doneAt || 0) > now - keepMs)).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    clearTimeout(expiryTimer);
+    if (keepMs && doneItems.length) {
+      const next = Math.min(...doneItems.map((i) => (i.doneAt || 0) + keepMs)) - now;
+      expiryTimer = setTimeout(render, Math.max(1000, Math.min(next + 500, 2147000000)));
+    }
     doneBox.replaceChildren(
       ...(doneItems.length
         ? [el('h3', { class: 'section-title' }, 'Zuletzt abgehakt'), ...doneItems.map((i) => row(i, true))]
@@ -156,6 +168,7 @@ export function mountShopping(root) {
       if (!inCat.length) continue;
       blocks.push(...(showCatHeaders() ? [el('h3', { class: 'section-title cat' }, iconCircle(cat, 'small'), cat.name)] : []), ...inCat.map((i) => row(i, false)));
     }
+    renderStockCard();
     listBox.replaceChildren(...(blocks.length ? blocks : [el('p', { class: 'empty' }, selectedStore === '__mine' ? 'Keine privaten Artikel. Artikel antippen und „Nur für mich anzeigen“ wählen.' : selectedStore && items.some((i) => !i.done) ? 'Für diesen Laden steht nichts auf der Liste.' : 'Die Liste ist leer. Tippe oben ein, was ihr braucht.')]));
     if (search.value.trim()) renderSuggest();
   }
@@ -184,12 +197,182 @@ export function mountShopping(root) {
     });
   }
 
+  function renderStockCard() {
+    const list = stockEntries();
+    const low = list.filter((x) => isLow(x.stock));
+    stockBox.replaceChildren(
+      el('h3', { class: 'section-title' }, 'Vorrat'),
+      el('button', { class: 'card stock-card', type: 'button', onclick: openStock },
+        el('span', { class: 'circle' , style: { background: 'var(--card-2)' } }, '📦'),
+        el('span', { class: 'grow fin-main' },
+          el('span', { class: 'item-name' }, list.length ? `${list.length} Artikel im Vorrat` : 'Vorrat einrichten'),
+          el('span', { class: 'hint' }, `Letzte Prüfung: ${checkedText()}${low.length ? ` · ${low.length} nachkaufen` : ''}`)),
+        el('span', { class: 'chev' }, '›')));
+  }
+
   root.replaceChildren(
     el('div', { class: 'search-wrap' }, search),
-    chips, suggestBox, listBox, doneBox
+    chips, suggestBox, listBox, doneBox, stockBox
   );
   render();
-  return subscribe(render);
+  const unsub = subscribe(render);
+  return () => { clearTimeout(expiryTimer); unsub(); };
+}
+
+/* Vorrat */
+const num = (v) => { const n = parseInt(String(v).replace(/\D/g, ''), 10); return Number.isFinite(n) ? n : null; };
+const isLow = (s) => s && Number.isFinite(s.count) && s.count <= (s.min || 0);
+const stockSorted = () => {
+  const order = state.settings.categories.map((c) => c.id);
+  return stockEntries().sort((a, b) => (order.indexOf(catOf(a.categoryId).id) - order.indexOf(catOf(b.categoryId).id)) || a.name.localeCompare(b.name, 'de'));
+};
+const onList = (name) => state.items.some((i) => !i.done && norm(i.name) === norm(name));
+function checkedText() {
+  const t = state.settings.stockCheckedAt;
+  if (!t) return 'noch nie';
+  const d = new Date(t);
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  const rel = days === 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`;
+  return `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} (${rel})`;
+}
+const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', value: value ?? '', placeholder: placeholder || '', oninput: (e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== e.target.value) e.target.value = v; } });
+
+function openStock() {
+  let unsub = null;
+  openSheet('Vorrat', (body) => {
+    const draw = () => {
+      const list = stockSorted();
+      body.replaceChildren(
+        el('div', { class: 'stock-head' },
+          el('span', { class: 'hint' }, 'Letzte Prüfung'),
+          el('strong', null, checkedText())),
+        el('button', { class: 'btn primary wide', type: 'button', disabled: !list.length, onclick: runCheck }, '✓ Vorrat aktualisieren'),
+        ...(list.length ? list.map((x) => {
+          const s = x.stock;
+          const low = isLow(s);
+          return el('button', { class: 'item fin-row stock-row' + (low ? ' low' : ''), type: 'button', onclick: () => openStockItem(x) },
+            iconCircle(catOf(x.categoryId)),
+            el('span', { class: 'grow fin-main' },
+              el('span', { class: 'item-name' }, x.name),
+              el('span', { class: 'hint' }, `Nachkaufen ab ${s.min || 0}${s.unit ? ` ${s.unit}` : ''}${onList(x.name) ? ' · steht auf der Liste' : ''}`)),
+            el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`));
+        }) : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Lege Artikel an, die ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]),
+        el('div', { class: 'row end actions' },
+          el('button', { class: 'btn ghost', type: 'button', onclick: () => openStockItem(null) }, '+ Artikel'))
+      );
+    };
+    draw();
+    unsub = subscribe(draw);
+  }, () => unsub && unsub());
+}
+
+/* Vorrat-Artikel anlegen oder bearbeiten */
+function openStockItem(entry) {
+  const s = (entry && entry.stock) || {};
+  openSheet(entry ? entry.name : 'Neuer Vorrat-Artikel', (body, close) => {
+    const name = el('input', { type: 'text', value: entry ? entry.name : '', placeholder: 'z. B. Hafermilch', autocomplete: 'off', list: 'stock-names' });
+    const names = el('datalist', { id: 'stock-names' }, ...catalogEntries().map((e) => el('option', { value: e.name })));
+    const cat = el('select', null, ...state.settings.categories.map((c) => el('option', { value: c.id, selected: c.id === (entry ? entry.categoryId : 'sonstiges') }, `${c.icon} ${c.name}`)));
+    name.addEventListener('change', () => {
+      const known = catalogEntries().find((e) => norm(e.name) === norm(name.value));
+      if (known && !entry) cat.value = catOf(known.categoryId).id;
+    });
+    const target = numInput(s.target, 'z. B. 8');
+    const min = numInput(s.min, 'z. B. 2');
+    const count = numInput(s.count, 'unbekannt');
+    const unit = el('input', { type: 'text', value: s.unit || '', placeholder: 'z. B. Packungen, Flaschen (optional)' });
+    const store = el('select', null,
+      el('option', { value: '' }, 'Alle Läden'),
+      ...state.settings.stores.map((x) => el('option', { value: x.id, selected: x.id === s.store }, `Nur ${x.name}`)));
+    const err = el('p', { class: 'form-info bad' });
+    body.append(
+      names,
+      el('label', null, 'Artikel', name),
+      el('label', null, 'Kategorie', cat),
+      el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Wunschvorrat', target), el('label', { class: 'grow' }, 'Nachkaufen ab', min)),
+      el('p', { class: 'hint' }, 'Liegt der Bestand bei der Prüfung bei „Nachkaufen ab“ oder darunter, kommt der Artikel mit der Menge „Vorrat“ auf die Einkaufsliste.'),
+      el('label', null, 'Einheit', unit),
+      el('label', null, 'Laden', store),
+      el('label', null, 'Aktueller Bestand', count),
+      err,
+      el('div', { class: 'row between actions' },
+        entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
+          if (await confirmSheet('Aus dem Vorrat entfernen?', `„${entry.name}“ wird aus der Vorratsliste entfernt. Die Einkaufsliste bleibt unverändert.`, 'Entfernen')) { await removeStock(entry.key); close(); }
+        } }, 'Entfernen') : el('span'),
+        el('button', { class: 'btn primary', type: 'button', onclick: async () => {
+          const n = name.value.trim();
+          const t = num(target.value), m = num(min.value) ?? 0, c = num(count.value);
+          if (!n) return (err.textContent = 'Bitte einen Artikel eingeben.');
+          if (!t) return (err.textContent = 'Bitte einen Wunschvorrat von mindestens 1 eingeben.');
+          if (m >= t) return (err.textContent = '„Nachkaufen ab“ muss kleiner als der Wunschvorrat sein.');
+          const key = stockKey(n);
+          const other = state.learned.get(key);
+          if (other && other.stock && (!entry || entry.key !== key)) return (err.textContent = 'Dieser Artikel steht schon im Vorrat.');
+          const changedCount = c !== (Number.isFinite(s.count) ? s.count : null);
+          await saveStock(entry && entry.key, n, cat.value, { target: t, min: m, unit: unit.value.trim(), store: store.value || '', count: c, ...(changedCount ? { countAt: Date.now() } : {}) });
+          close();
+        } }, 'Speichern'))
+    );
+  });
+}
+
+/* Vorrat prüfen: Artikel für Artikel nur die Zahl eingeben */
+function runCheck() {
+  const list = stockSorted();
+  if (!list.length) return;
+  let idx = 0;
+  const entered = new Map();
+  const added = [];
+  const keep = (e) => e.preventDefault();
+  openSheet('Vorrat prüfen', (body, close) => {
+    const step = el('p', { class: 'hint stock-step' });
+    const title = el('div', { class: 'stock-check-name' });
+    const input = numInput('', '');
+    input.classList.add('stock-input');
+    input.setAttribute('enterkeyhint', 'next');
+    input.setAttribute('aria-label', 'Bestand');
+    const of = el('span', { class: 'stock-of' });
+    const info = el('p', { class: 'hint' });
+    const back = el('button', { class: 'btn ghost', type: 'button', onmousedown: keep, onclick: () => { if (idx > 0) { idx--; show(); } } }, 'Zurück');
+    const next = el('button', { class: 'btn primary', type: 'button', onmousedown: keep, onclick: () => confirm() });
+    const finish = () => {
+      saveShopMeta({ stockCheckedAt: Date.now() });
+      close();
+      toast(added.length ? `Vorrat geprüft. Auf die Einkaufsliste: ${added.join(', ')}` : 'Vorrat geprüft. Alles ausreichend da.', { ms: 6000 });
+    };
+    function show() {
+      const x = list[idx];
+      const s = x.stock;
+      step.textContent = `${idx + 1} von ${list.length}`;
+      title.replaceChildren(iconCircle(catOf(x.categoryId)), el('span', null, x.name));
+      of.textContent = `/ ${s.target || 0}${s.unit ? ` ${s.unit}` : ''}`;
+      info.textContent = `Nachkaufen ab ${s.min || 0}${Number.isFinite(s.count) ? ` · zuletzt ${s.count}` : ''}. Leer lassen überspringt.`;
+      input.value = entered.has(x.key) ? String(entered.get(x.key)) : '';
+      back.disabled = idx === 0;
+      next.replaceChildren(idx === list.length - 1 ? '✓ Fertig' : '✓ Weiter');
+      input.focus({ preventScroll: true });
+    }
+    function confirm() {
+      const x = list[idx];
+      const n = num(input.value);
+      if (n !== null) {
+        entered.set(x.key, n);
+        setStockCount(x.key, n);
+        if (n <= (x.stock.min || 0) && !onList(x.name) && !added.includes(x.name)) {
+          addItem({ name: x.name, qty: 'Vorrat', categoryId: x.categoryId, store: x.stock.store || null });
+          added.push(x.name);
+        }
+      }
+      if (idx >= list.length - 1) return finish();
+      idx++;
+      show();
+    }
+    body.append(step, title, el('div', { class: 'stock-entry' }, input, of), info,
+      el('div', { class: 'row between actions' }, back, next));
+    show();
+  });
+  const i = document.querySelector('.stock-input');
+  if (i) i.focus();
 }
 
 /* Einstellungen: Kategorien und Läden */
@@ -201,6 +384,10 @@ function openSettings() {
     const headerToggle = el('label', { class: 'toggle-row' },
       el('span', null, 'Kategorie-Überschriften anzeigen'),
       el('input', { type: 'checkbox', checked: showCatHeaders(), onchange: (e) => saveProfile({ showCatHeaders: e.target.checked }) }));
+    const doneMin = numInput(String(state.settings.doneMinutes ?? 60), '60');
+    const doneRow = el('div', null,
+      el('label', null, '„Zuletzt abgehakt“ ausblenden nach (Minuten)', doneMin),
+      el('p', { class: 'hint' }, 'Abgehakte Artikel verschwinden nach dieser Zeit von selbst aus „Zuletzt abgehakt“. 0 = nie ausblenden.'));
 
     const openStores = new Set();
     const move = (arr, i, d) => {
@@ -248,11 +435,12 @@ function openSettings() {
       );
     }
     draw();
-    body.prepend(headerToggle);
+    body.prepend(headerToggle, doneRow);
     body.append(area, el('div', { class: 'row end actions' },
       el('button', { class: 'btn primary', type: 'button', onclick: async () => {
         if (!cats.some((c) => c.name.trim())) return;
-        await saveSettings({ categories: cats.filter((c) => c.name.trim()), stores: stores.filter((s) => s.name.trim()) });
+        const dm = num(doneMin.value);
+        await saveSettings({ categories: cats.filter((c) => c.name.trim()), stores: stores.filter((s) => s.name.trim()), doneMinutes: dm === null ? 60 : dm });
         close();
       } }, 'Speichern')));
   });

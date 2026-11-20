@@ -222,23 +222,38 @@ function openEvSettings() {
 
 const monthName = (d) => d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
+const PAST_STEP = 10;
+const withMonths = (list) => {
+  let lastMonth = '';
+  return list.flatMap((e) => {
+    const m = e.start.slice(0, 7);
+    const head = m !== lastMonth ? [el('h3', { class: 'section-title month' }, el('span', null, monthName(parseIso(e.start))))] : [];
+    lastMonth = m;
+    return [...head, eventRow(e)];
+  });
+};
+
 function renderUpcoming(root, view) {
-  const list = view.past
-    ? state.ev.events.filter((e) => endOf(e) < todayIso()).sort((a, b) => b.start.localeCompare(a.start))
-    : upcoming();
-  const open = upcoming().filter(needsAnswer);
+  const list = upcoming();
+  const open = list.filter(needsAnswer);
   const blocks = [];
-  if (!view.past && open.length) {
+  if (open.length) {
     blocks.push(el('section', { class: 'card note-card' }, el('h2', null, `Wartet auf deine Antwort (${open.length})`), ...open.map((e) => eventRow(e))));
   }
-  let lastMonth = '';
-  for (const e of list) {
-    const m = e.start.slice(0, 7);
-    if (m !== lastMonth) { lastMonth = m; blocks.push(el('h3', { class: 'section-title month' }, el('span', null, monthName(parseIso(e.start))))); }
-    blocks.push(eventRow(e));
+  blocks.push(...withMonths(list));
+  if (!list.length) blocks.push(el('p', { class: 'empty' }, 'Keine anstehenden Termine. Tippe unten auf +.'));
+  blocks.push(el('button', { class: 'btn ghost wide past-toggle', type: 'button', onclick: () => { view.past = !view.past; view.pastShown = PAST_STEP; view.redraw(); } }, view.past ? 'Vergangene Termine ausblenden' : 'Vergangene Termine anzeigen'));
+  if (view.past) {
+    const t = todayIso();
+    const past = state.ev.events.filter((e) => endOf(e) < t)
+      .sort((a, b) => b.start.localeCompare(a.start) || (b.startTime || '').localeCompare(a.startTime || ''));
+    const shown = past.slice(0, view.pastShown || PAST_STEP);
+    blocks.push(el('h2', { class: 'past-title' }, 'Vergangene Termine'));
+    blocks.push(past.length ? el('div', { class: 'past-list' }, ...withMonths(shown)) : el('p', { class: 'empty' }, 'Keine vergangenen Termine.'));
+    if (past.length > shown.length) {
+      blocks.push(el('button', { class: 'btn ghost wide', type: 'button', onclick: () => { view.pastShown = shown.length + PAST_STEP; view.redraw(); } }, `Weitere anzeigen (noch ${past.length - shown.length})`));
+    }
   }
-  if (!list.length) blocks.push(el('p', { class: 'empty' }, view.past ? 'Keine vergangenen Termine.' : 'Keine anstehenden Termine. Tippe unten auf +.'));
-  blocks.push(el('button', { class: 'btn ghost wide', onclick: () => { view.past = !view.past; view.redraw(); } }, view.past ? 'Zurück zu kommenden Terminen' : 'Vergangene Termine anzeigen'));
   root.replaceChildren(...blocks);
 }
 
@@ -339,7 +354,7 @@ function renderIdeas(root, box) {
 }
 
 export function mountEvents(root) {
-  const view = { sub: 'kommend', past: false, month: new Date(), day: null, redraw: null };
+  const view = { sub: 'kommend', past: false, pastShown: 10, month: new Date(), day: null, redraw: null };
   const subnav = el('div', { class: 'chips' });
   const content = el('div');
   const ideaList = el('div');

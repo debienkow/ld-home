@@ -30,10 +30,13 @@ export function onSnapshot(ref, cb) {
   setTimeout(l.run, 0);
   return () => listeners.splice(listeners.indexOf(l), 1);
 }
+const DEL = { __del: true };
+export const deleteField = () => DEL;
+const dropDel = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== DEL).map(([k, v]) => [k, v && typeof v === 'object' && !Array.isArray(v) ? dropDel(v) : v]));
 const put = (ref, value, merge) => {
   const c = colOf(ref.col);
   const clean = Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined));
-  c[ref.id] = merge && c[ref.id] ? deepMerge(c[ref.id], clean) : clean;
+  c[ref.id] = dropDel(merge && c[ref.id] ? deepMerge(c[ref.id], clean) : clean);
 };
 const deepMerge = (a, b) => {
   const out = { ...a };

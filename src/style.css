@@ -475,3 +475,24 @@ html.ios .sheet { max-height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top,
 html.ios .backdrop::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 160px; background: var(--card); pointer-events: none; }
 html.ios.kb-open .sheet-body > .actions { padding-bottom: 12px; margin-bottom: -20px; }
 html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+/* Events: vergangene Termine unter den kommenden */
+.past-toggle { margin-top: 14px; }
+.past-title { margin: 22px 4px 4px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 1.05rem; }
+.past-list { opacity: .8; }
+.past-list + .btn { margin-top: 10px; }
+
+/* Einkauf: Vorrat */
+.stock-card { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; color: inherit; font: inherit; cursor: pointer; padding: 12px 14px; }
+.stock-card .chev { font-size: 1.6rem; color: var(--muted); line-height: 1; }
+.stock-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 2px; }
+.stock-row { color: inherit; font: inherit; cursor: pointer; }
+.stock-row.low { box-shadow: inset 4px 0 0 var(--warn, #f0a04b); }
+.stock-count { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); }
+.stock-count b { color: var(--text); font-size: 1.1rem; }
+.stock-row.low .stock-count b { color: var(--warn, #f0a04b); }
+.stock-step { margin: 0; }
+.stock-check-name { display: flex; align-items: center; gap: 12px; font-size: 1.3rem; font-weight: 700; }
+.stock-entry { display: flex; align-items: center; gap: 12px; }
+.stock-entry .stock-input { width: 7.5rem; font-size: 1.8rem !important; text-align: center; font-variant-numeric: tabular-nums; padding: 10px; }
+.stock-of { font-size: 1.4rem; color: var(--muted); font-variant-numeric: tabular-nums; }
