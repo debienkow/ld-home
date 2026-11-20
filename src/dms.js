@@ -1,5 +1,5 @@
 /* Tab DMS: Dokumente fotografieren, ablegen, durchsuchen */
-import { confirmSheet, downloadBlob, el, icon, keepChips, openSheet, uid } from './dom.js';
+import { confirmSheet, downloadBlob, el, icon, keepChips, openSheet, uid, longPress } from './dom.js';
 import { compress, DEFAULT_DMS_CATEGORIES, guessTitle, imagesToPdf, pdfToImages, recognize } from './dmslogic.js';
 import { usageCard } from './usage.js';
 import { loadPages, removeDms, saveDms, saveDmsConfig, state, subscribe } from './store.js';
@@ -333,11 +333,11 @@ function openDmsSettings() {
 
 export function docRow(d) {
   const cat = catOf(d.categoryId);
-  return el('button', { class: 'item fin-row', type: 'button', onclick: () => openDocSheet(d) },
+  return longPress(el('button', { class: 'item fin-row', type: 'button', onclick: () => openDocSheet(d) },
     d.thumb ? el('img', { class: 'doc-thumb', src: d.thumb, alt: '' }) : el('span', { class: 'circle', style: { background: cat.color } }, cat.icon),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${d.owner ? '🔒 ' : ''}${d.title}`),
-      el('span', { class: 'hint' }, `${companyById(d.companyId) ? `🏢 ${companyById(d.companyId).name} · ` : ''}${cat.icon} ${cat.name} · ${dateText(d.date)}${d.pageCount > 1 ? ` · ${d.pageCount} Seiten` : ''}${(d.tags || []).length ? ` · ${d.tags.join(', ')}` : ''}`)));
+      el('span', { class: 'hint' }, `${companyById(d.companyId) ? `🏢 ${companyById(d.companyId).name} · ` : ''}${cat.icon} ${cat.name} · ${dateText(d.date)}${d.pageCount > 1 ? ` · ${d.pageCount} Seiten` : ''}${(d.tags || []).length ? ` · ${d.tags.join(', ')}` : ''}`))), () => openDocSheet(d, true));
 }
 
 export function mountDms(root) {

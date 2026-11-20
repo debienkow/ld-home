@@ -538,3 +538,8 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 @media (min-width: 960px) { .fab.left { left: calc(var(--side, 240px) + 32px); } }
 .lp { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .sheet.compact .actions .btn.primary { margin-left: auto; }
+/* Termin ansehen */
+.ev-view-cat { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.ev-note { margin: 4px 2px; }
+.ev-person { padding: 6px 2px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.ev-person .rsvp { font-size: .9rem; }

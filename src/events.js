@@ -1,12 +1,12 @@
 /* Tab Events */
-import { chipInput, confirmSheet, el, icon, openSheet, keepChips, swipeDelete, toast, uid } from './dom.js';
+import { chipInput, confirmSheet, el, icon, longPress, openSheet, keepChips, swipeDelete, toast, uid } from './dom.js';
 import {
   addDays, covers, DEFAULT_EVENT_CATEGORIES, endOf, holidayOn, holidays, isoOf, isVac, parseIso, rangeText, RSVP, todayIso, VACATION
 } from './evlogic.js';
 import { myKey, nameOfKey, userName, removeEvent, removeIdea, restoreIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
 import { avatar, keyAvatar } from './profile.js';
-import { placeField } from './places.js';
+import { navLink, placeField } from './places.js';
 import { deleteEvent, pushEvent } from './gcal.js';
 import { companyById, openCompany } from './companies.js';
 
@@ -35,12 +35,13 @@ const knownGuests = () => {
 };
 
 export function eventRow(e, onclick, plain) {
-  return el('button', { class: 'item fin-row ev-row' + '', type: 'button', onclick: onclick || (() => openEventSheet(e)) },
+  const row = el('button', { class: 'item fin-row ev-row' + '', type: 'button', onclick: onclick || (() => openEventSheet(e)) },
     circle(catOf(e.categoryId)),
     el('span', { class: 'grow fin-main' },
       el('span', { class: 'item-name' }, `${e.important ? '⭐ ' : ''}${e.title}`),
       el('span', { class: 'hint' }, `${rangeText(e)}${e.location ? ` · ${e.location.split(',')[0]}` : ''}`)),
     badges(e));
+  return onclick || e.kind === 'deadline' ? row : longPress(row, () => openEventEdit(e));
 }
 
 /* Automatischer Termin einer Kündigungsfrist: nur ansehen, gepflegt wird er über den Vertrag */
@@ -58,8 +59,47 @@ function openDeadlineSheet(e) {
   });
 }
 
-/* Termin anlegen, ansehen, bearbeiten */
+/* Termin ansehen (schlank); neu = gleich bearbeiten */
 export function openEventSheet(event, preset) {
+  if (event && event.kind === 'deadline') return openDeadlineSheet(event);
+  if (!event) return openEventEdit(null, preset);
+  const e = event;
+  const me = myKey();
+  const cat = catOf(e.categoryId);
+  openSheet(`${e.important ? '⭐ ' : ''}${e.title}`, (body, close) => {
+    const info = (label, ...val) => el('div', { class: 'info-row' }, el('span', { class: 'hint' }, label), el('span', null, ...val));
+    const ans = (v) => el('span', { class: 'rsvp rsvp-' + (v || 'open') }, el('b', null, RSVP[v || ''][0]), ' ', RSVP[v || ''][1]);
+    const people = isVac(e) ? [] : parts(e).map((k) => el('div', { class: 'row between ev-person' },
+      el('span', { class: 'who' }, keyAvatar(k, 'mini'), nameOfKey(k)), ans(e.rsvp && e.rsvp[k])));
+    const guests = isVac(e) ? [] : (e.guests || []).map((g) => el('div', { class: 'row between ev-person' },
+      el('span', { class: 'who' }, el('span', { class: 'avatar mini guest-av' }, g.slice(0, 1).toUpperCase()), g), ans((e.grsvp || {})[g])));
+    const hasGeo = Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lon)) && e.lat !== null && e.lon !== null;
+    const rsvpRow = !isVac(e) && parts(e).includes(me)
+      ? el('div', { class: 'seg' }, ...[['yes', 'Zusagen'], ['maybe', 'Vielleicht'], ['no', 'Absagen']].map(([k, l]) =>
+        el('button', { type: 'button', class: 'seg-btn' + (myRsvp(e) === k ? ' active' : ''), onclick: async () => {
+          await saveEvent(e.id, { rsvp: { [me]: myRsvp(e) === k ? '' : k } });
+          close();
+        } }, l)))
+      : null;
+    body.append(
+      el('div', { class: 'ev-view-cat' }, circle(cat, true), el('span', null, isVac(e) ? `${cat.name} ${nameOfKey(e.who || me)}` : cat.name)),
+      el('div', { class: 'info-list' },
+        info('Wann', rangeText(e)),
+        e.location ? info('Wo', hasGeo ? el('a', { href: navLink(e.lat, e.lon), target: '_blank', rel: 'noopener' }, e.location) : e.location) : null),
+      e.note ? el('p', { class: 'pre ev-note' }, e.note) : null,
+      rsvpRow ? el('p', { class: 'hint' }, 'Meine Antwort') : null,
+      rsvpRow,
+      people.length || guests.length ? el('h3', null, 'Eingeladen') : null,
+      ...people, ...guests,
+      el('p', { class: 'hint note-line' }, 'Tipp: Termin in der Liste lange drücken öffnet direkt „Bearbeiten“.'),
+      el('div', { class: 'row end actions' },
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Schließen'),
+        el('button', { class: 'btn primary', type: 'button', onclick: () => { close(); setTimeout(() => openEventEdit(e), 0); } }, '✏️ Bearbeiten')));
+  });
+}
+
+/* Termin anlegen oder bearbeiten */
+export function openEventEdit(event, preset) {
   if (event && event.kind === 'deadline') return openDeadlineSheet(event);
   const me = myKey();
   const e = event || { title: '', categoryId: 'treffen', start: todayIso(), end: '', allDay: false, startTime: '', endTime: '', location: '', note: '', important: false, participants: [...PEOPLE], vacation: [], guests: [], grsvp: {}, ...(preset || {}) };
