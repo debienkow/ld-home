@@ -280,13 +280,33 @@ function mountStock(root) {
 function openStockItem(entry) {
   const s = (entry && entry.stock) || {};
   openSheet(entry ? entry.name : 'Neuer Vorrat-Artikel', (body, close) => {
-    const name = el('input', { type: 'text', value: entry ? entry.name : '', placeholder: 'z. B. Hafermilch', autocomplete: 'off', list: 'stock-names' });
-    const names = el('datalist', { id: 'stock-names' }, ...catalogEntries().map((e) => el('option', { value: e.name })));
+    const name = el('input', { type: 'text', value: entry ? entry.name : '', placeholder: 'z. B. Hafermilch', autocomplete: 'off', autocapitalize: 'sentences', enterkeyhint: 'next' });
+    const sugg = el('div', { class: 'suggest stock-sugg hidden' });
     const cat = el('select', null, ...state.settings.categories.map((c) => el('option', { value: c.id, selected: c.id === (entry ? entry.categoryId : 'sonstiges') }, `${c.icon} ${c.name}`)));
-    name.addEventListener('change', () => {
-      const known = catalogEntries().find((e) => norm(e.name) === norm(name.value));
-      if (known && !entry) cat.value = catOf(known.categoryId).id;
+    const pick = (e) => {
+      name.value = e.name;
+      cat.value = catOf(e.categoryId).id;
+      sugg.classList.add('hidden');
+    };
+    const drawSugg = () => {
+      const term = norm(name.value);
+      if (!term) return sugg.classList.add('hidden');
+      const taken = new Set(stockEntries().filter((x) => !entry || x.key !== entry.key).map((x) => norm(x.name)));
+      const hits = catalogEntries()
+        .filter((e) => norm(e.name).includes(term) && norm(e.name) !== term && !taken.has(norm(e.name)))
+        .sort((a, b) => Number(!norm(a.name).startsWith(term)) - Number(!norm(b.name).startsWith(term)) || a.name.localeCompare(b.name, 'de'))
+        .slice(0, 4);
+      sugg.replaceChildren(...hits.map((e) => el('button', { class: 'suggest-row', type: 'button', onmousedown: (ev) => ev.preventDefault(), onclick: () => pick(e) },
+        iconCircle(catOf(e.categoryId), 'small'), el('span', { class: 'grow' }, e.name))));
+      sugg.classList.toggle('hidden', !hits.length);
+    };
+    name.addEventListener('input', () => {
+      drawSugg();
+      const known = !entry && catalogEntries().find((e) => norm(e.name) === norm(name.value));
+      if (known) cat.value = catOf(known.categoryId).id;
     });
+    name.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); sugg.classList.add('hidden'); target.focus(); } });
+    name.addEventListener('blur', () => setTimeout(() => sugg.classList.add('hidden'), 150));
     const target = numInput(s.target, 'z. B. 8');
     const min = numInput(s.min, 'z. B. 2');
     const place = el('select', null,
@@ -296,9 +316,9 @@ function openStockItem(entry) {
       el('option', { value: '' }, 'Alle Läden'),
       ...state.settings.stores.map((x) => el('option', { value: x.id, selected: x.id === s.store }, `Nur ${x.name}`)));
     const err = el('p', { class: 'form-info bad' });
+    body.closest('.sheet').classList.add('tall');
     body.append(
-      names,
-      el('label', null, 'Artikel', name),
+      el('div', { class: 'stock-name' }, el('label', null, 'Artikel', name), sugg),
       el('label', null, 'Kategorie', cat),
       el('div', { class: 'row' }, el('label', { class: 'grow' }, 'Wunschvorrat', target), el('label', { class: 'grow' }, 'Nachkaufen ab', min)),
       el('p', { class: 'hint' }, 'Liegt der Bestand bei der Prüfung bei „Nachkaufen ab“ oder darunter, kommt der Artikel mit der Menge „Vorrat“ auf die Einkaufsliste.'),

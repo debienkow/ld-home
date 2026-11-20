@@ -503,3 +503,12 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .stock-head.card { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px; margin-bottom: 10px; }
 .stock-check-btn { margin-bottom: 4px; }
 .section-title.place { text-transform: none; letter-spacing: 0; font-size: .95rem; color: var(--text); }
+.stock-name { position: relative; display: grid; gap: 6px; }
+.stock-sugg { position: absolute; top: 100%; left: 0; right: 0; z-index: 4; margin-top: 4px; }
+.stock-sugg .suggest-row { min-height: 46px; color: var(--text); font: inherit; }
+@media (max-width: 699px) { .sheet.tall { height: 100dvh; } }
+@media (max-width: 699px) {
+  .sheet.tall { display: flex; flex-direction: column; }
+  .sheet.tall .sheet-body { flex: 1 0 auto; display: flex; flex-direction: column; }
+  .sheet.tall .sheet-body > .actions { margin-top: auto; }
+}
