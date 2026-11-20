@@ -297,7 +297,19 @@ export const removeStock = (key) => {
 export const putStockItem = (key, data) =>
   settle(setDoc(doc(db, 'items', 'vorrat_' + key), { owner: '', done: false, doneAt: 0, ...data, ...stamp() }));
 export const setStockCount = (key, count, ok, at) =>
-  !state.learned.has(key) ? Promise.resolve() : settle(setDoc(doc(db, 'catalog', key), { stock: { count: ok ? null : count, ok: !!ok, countAt: at || Date.now() } }, { merge: true }));
+  !state.learned.has(key) ? Promise.resolve() : settle(setDoc(doc(db, 'catalog', key), { stock: { count: ok ? null : count, ok: !!ok, countAt: at || Date.now(), before: deleteField() } }, { merge: true }));
+/* Gekauft: Bestand gilt als aufgefüllt; Zurückholen stellt den alten Wert wieder her */
+export const setStockBought = (key, bought) => {
+  const cur = state.learned.get(key);
+  const s = cur && cur.stock;
+  if (!s) return Promise.resolve();
+  if (bought) {
+    if (s.ok) return Promise.resolve();
+    return settle(setDoc(doc(db, 'catalog', key), { stock: { ok: true, count: null, before: { count: Number.isFinite(s.count) ? s.count : null, countAt: s.countAt || 0 } } }, { merge: true }));
+  }
+  if (!s.before) return Promise.resolve();
+  return settle(setDoc(doc(db, 'catalog', key), { stock: { ok: false, count: s.before.count, countAt: s.before.countAt || 0, before: deleteField() } }, { merge: true }));
+};
 export const saveShopMeta = (patch) => settle(setDoc(doc(db, 'config', 'shopping'), patch, { merge: true }));
 
 export const myKey = () => (state.user && USERS[state.user.uid] ? USERS[state.user.uid].key : 'dudi');

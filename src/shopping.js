@@ -2,7 +2,7 @@
 import { confirmSheet, el, icon, isIOS, longPress, openSheet, swipeActions, toast, uid } from './dom.js';
 import { stockLow, syncStockAll, syncStockGone, syncStockOne } from './stock.js';
 import {
-  addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockCount,
+  addItem, catalogEntries, learn, norm, removeItem, removeStock, restoreItem, saveProfile, saveSettings, saveShopMeta, saveStock, setDone, setStockBought, setStockCount,
   showCatHeaders, state, stockEntries, stockKey, subscribe, updateItem, userName
 } from './store.js';
 
@@ -131,18 +131,23 @@ export function mountShopping(root) {
     toast(`„${item.name}“ gelöscht`, { action: 'Rückgängig', onAction: () => restoreItem(item) });
   };
 
+  const tick = (item, done) => {
+    setDone(item.id, done);
+    if (/^Vorrat\b/.test(item.qty || '')) setStockBought(stockKey(item.name), done);
+  };
+
   function row(item, done) {
     const cat = catOf(item.categoryId);
     const store = storeOf(item.store);
     const inner = el('div', { class: 'item' + (done ? ' done' : '') },
-      longPress(el('button', { class: 'item-main', type: 'button', title: 'Tippen: abhaken · lange drücken: bearbeiten', onclick: () => setDone(item.id, !done) },
+      longPress(el('button', { class: 'item-main', type: 'button', title: 'Tippen: abhaken · lange drücken: bearbeiten', onclick: () => tick(item, !done) },
         iconCircle(cat),
         el('span', { class: 'item-name' }, `${item.owner ? '🔒 ' : ''}${item.name}`),
         item.qty && el('span', { class: 'pill' }, item.qty),
         store && el('span', { class: 'tag' }, store.name)), () => openItemSheet(item)),
-      el('button', { class: 'check-btn' + (done ? ' on' : ''), type: 'button', 'aria-label': done ? `${item.name} wieder auf die Liste` : `${item.name} abhaken`, onclick: () => { setDone(item.id, !done); } }, icon(done ? 'undo' : 'check'))
+      el('button', { class: 'check-btn' + (done ? ' on' : ''), type: 'button', 'aria-label': done ? `${item.name} wieder auf die Liste` : `${item.name} abhaken`, onclick: () => { tick(item, !done); } }, icon(done ? 'undo' : 'check'))
     );
-    return swipeActions(inner, { onLeft: () => drop(item), onRight: () => setDone(item.id, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
+    return swipeActions(inner, { onLeft: () => drop(item), onRight: () => tick(item, !done), rightLabel: done ? '↩ Wieder auf die Liste' : '✓ Abgehakt' });
   }
 
   function render() {
@@ -257,7 +262,7 @@ function mountStock(root) {
   const search = el('input', { type: 'search', class: 'search', placeholder: 'Artikel suchen oder neu anlegen …', autocomplete: 'off', enterkeyhint: 'done' });
   const suggestBox = el('div', { class: 'suggest hidden' });
   const listBox = el('div');
-  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat prüfen', title: 'Vorrat prüfen', onclick: () => runCheck() }, icon('search'));
+  const fab = el('button', { class: 'fab text', type: 'button', 'aria-label': 'Vorrat checken', onclick: () => runCheck() }, icon('clipboard'), el('span', null, 'Checken'));
   const fabSync = el('button', { class: 'fab left', type: 'button', 'aria-label': 'Einkaufsliste abgleichen', title: 'Einkaufsliste abgleichen', onclick: async () => {
     fabSync.disabled = true;
     try {
