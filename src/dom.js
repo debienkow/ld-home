@@ -165,8 +165,16 @@ export function pwField(input) {
 export function openSheet(title, buildContent, onClose) {
   let closed = false;
   const before = document.activeElement;
-  const close = (viaBack) => {
+  let asking = false;
+  const close = (viaBack, force) => {
     if (closed) return;
+    if (!force && body.guard && body.guard()) {
+      if (viaBack === true) history.pushState({ ldSheet: true }, '');
+      if (asking) return;
+      asking = true;
+      confirmSheet('Wirklich verwerfen?', 'Deine Eingaben werden nicht gespeichert.', 'Verwerfen').then((ok) => { asking = false; if (ok) setTimeout(() => close(false, true), 60); });
+      return;
+    }
     closed = true;
     const i = sheetStack.indexOf(close);
     if (i >= 0) sheetStack.splice(i, 1);
@@ -197,7 +205,7 @@ export function openSheet(title, buildContent, onClose) {
   document.body.classList.add('no-scroll');
   history.pushState({ ldSheet: true }, '');
   sheetStack.push(close);
-  buildContent(body, () => close());
+  buildContent(body, () => close(false, true));
   try { sheet.focus({ preventScroll: true }); } catch (x) { /* ignorieren */ }
   return () => close();
 }

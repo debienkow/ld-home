@@ -487,10 +487,8 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .stock-card .chev { font-size: 1.6rem; color: var(--muted); line-height: 1; }
 .stock-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 2px; }
 .stock-row { color: inherit; font: inherit; cursor: pointer; }
-.stock-row.low { box-shadow: inset 4px 0 0 var(--warn, #f0a04b); }
 .stock-count { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); }
 .stock-count b { color: var(--text); font-size: 1.1rem; }
-.stock-row.low .stock-count b { color: var(--warn, #f0a04b); }
 .stock-step { margin: 0; }
 .stock-check-name { display: flex; align-items: center; gap: 12px; font-size: 1.3rem; font-weight: 700; }
 .stock-entry { display: flex; align-items: center; gap: 12px; }
@@ -512,3 +510,9 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
   .sheet.tall .sheet-body { flex: 1 0 auto; display: flex; flex-direction: column; }
   .sheet.tall .sheet-body > .actions { margin-top: auto; }
 }
+
+.stock-row.yellow .stock-count b { color: #f5c542; }
+.stock-row.red { box-shadow: inset 4px 0 0 #ff3b3b; }
+.stock-row.red .stock-count b { color: #ff3b3b; }
+.stock-row.red .stock-count { color: #ff7a7a; }
+.fab:disabled { opacity: .45; }

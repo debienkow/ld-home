@@ -6,7 +6,7 @@ export function seed() {
     hafermilch: { name: 'Hafermilch', categoryId: 'milch', stockOnly: true, stock: { target: 8, min: 2, place: 'o2', count: 3, countAt: Date.now() - 6 * 86400000 } },
     toilettenpapier: { name: 'Toilettenpapier', categoryId: 'haushalt', stockOnly: true, stock: { target: 2, min: 1, place: 'o4', count: 2 } },
     zahnpasta: { name: 'Zahnpasta', categoryId: 'drogerie', stockOnly: true, stock: { target: 3, min: 1, place: 'o6', count: 2 } },
-    'küchenrolle': { name: 'Küchenrolle', categoryId: 'haushalt', stockOnly: true, stock: { target: 4, min: 1, place: 'o4' } }
+    'küchenrolle': { name: 'Küchenrolle', categoryId: 'haushalt', stockOnly: true, stock: { target: 4, min: 2, place: 'o4', count: 0 } }
   };
   const past = Object.fromEntries(Array.from({ length: 23 }, (_, i) => ['old' + i, { title: `Alter Termin ${i + 1}`, categoryId: 'treffen', start: iso(-3 - i * 9), end: iso(-3 - i * 9), allDay: true, participants: ['dudi', 'logi'], rsvp: { dudi: 'yes' }, createdAt: Date.now() }]));
   const e = (id, type, date, title, cents, payer, categoryId, extra = {}) => [id, { type, date, time: '', title, cents, payer, categoryId, noSplit: false, note: '', createdAt: Date.now(), ...extra }];

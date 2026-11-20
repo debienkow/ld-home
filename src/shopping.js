@@ -205,8 +205,8 @@ export function mountShopping(root) {
       el('button', { class: 'card stock-card', type: 'button', onclick: () => { fromList = true; location.hash = 'einkauf/vorrat'; } },
         el('span', { class: 'circle' , style: { background: 'var(--card-2)' } }, '📦'),
         el('span', { class: 'grow fin-main' },
-          el('span', { class: 'item-name' }, list.length ? `${list.length} Artikel im Vorrat` : 'Vorrat einrichten'),
-          el('span', { class: 'hint' }, `Letzte Prüfung: ${checkedText()}${low.length ? ` · ${low.length} nachkaufen` : ''}`)),
+          el('span', { class: 'item-name' }, 'Zum Vorratsplaner'),
+          el('span', { class: 'hint' }, list.length ? `${list.length} Artikel · letzte Prüfung: ${checkedText()}${low.length ? ` · ${low.length} nachkaufen` : ''}` : 'Vorrat einrichten')),
         el('span', { class: 'chev' }, '›')));
   }
 
@@ -242,47 +242,88 @@ const numInput = (value, placeholder) => el('input', { type: 'text', inputmode: 
 let fromList = false;
 const placeOf = (id) => state.settings.places.find((p) => p.id === id);
 
-/* Vorrat als eigene Seite im Einkauf */
+/* Vorratsplaner als eigene Seite im Einkauf */
+const levelOf = (s) => {
+  if (!Number.isFinite(s.count)) return '';
+  if (s.count < (s.min || 0) * 0.5) return ' red';
+  if (s.count < (s.target || 0)) return ' yellow';
+  return '';
+};
 function mountStock(root) {
   const back = () => { if (fromList) { fromList = false; history.back(); } else location.hash = 'einkauf'; };
+  const search = el('input', { type: 'search', class: 'search', placeholder: 'Artikel suchen oder neu anlegen …', autocomplete: 'off', enterkeyhint: 'done' });
+  const suggestBox = el('div', { class: 'suggest hidden' });
+  const listBox = el('div');
+  const fab = el('button', { class: 'fab', type: 'button', 'aria-label': 'Vorrat aktualisieren', title: 'Vorrat aktualisieren', onclick: () => runCheck() }, icon('check'));
+  const open = (entry, preset) => { search.value = ''; renderSuggest(); search.blur(); openStockItem(entry, preset); };
+
+  function renderSuggest() {
+    const name = search.value.trim();
+    const term = norm(name);
+    if (!term) { suggestBox.classList.add('hidden'); listBox.classList.remove('hidden'); return; }
+    const stocked = new Map(stockEntries().map((x) => [norm(x.name), x]));
+    const hits = catalogEntries()
+      .filter((e) => norm(e.name).includes(term))
+      .sort((a, b) => Number(!norm(a.name).startsWith(term)) - Number(!norm(b.name).startsWith(term)) || a.name.localeCompare(b.name, 'de'))
+      .slice(0, 8);
+    const rows = hits.map((e) => {
+      const st = stocked.get(norm(e.name));
+      return el('button', { class: 'suggest-row', type: 'button', onclick: () => open(st || null, st ? null : { name: e.name, categoryId: e.categoryId }) },
+        iconCircle(catOf(e.categoryId)), el('span', { class: 'grow' }, e.name), st && el('span', { class: 'pill' }, 'im Vorrat'));
+    });
+    if (!hits.some((e) => norm(e.name) === term)) {
+      rows.push(el('button', { class: 'suggest-row new', type: 'button', onclick: () => open(null, { name, categoryId: 'sonstiges' }) },
+        el('span', { class: 'circle plus' }, '+'), el('span', { class: 'grow' }, `„${name}“ neu anlegen`)));
+    }
+    suggestBox.replaceChildren(...rows);
+    suggestBox.classList.remove('hidden');
+    listBox.classList.add('hidden');
+  }
+  search.addEventListener('input', renderSuggest);
+  search.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const first = suggestBox.querySelector('.suggest-row'); if (first && search.value.trim()) first.click(); } });
+
   const draw = () => {
     const list = stockSorted();
+    fab.disabled = !list.length;
     let lastPlace = null;
     const rows = list.flatMap((x) => {
       const s = x.stock;
-      const low = isLow(s);
+      const lvl = levelOf(s);
       const pl = placeOf(s.place);
       const head = (pl ? pl.id : '') !== lastPlace ? [el('h3', { class: 'section-title place' }, pl ? `📍 ${pl.name}` : 'Ohne Lagerort')] : [];
       lastPlace = pl ? pl.id : '';
-      return [...head, el('button', { class: 'item fin-row stock-row' + (low ? ' low' : ''), type: 'button', onclick: () => openStockItem(x) },
+      return [...head, el('button', { class: 'item fin-row stock-row' + lvl, type: 'button', onclick: () => openStockItem(x) },
         iconCircle(catOf(x.categoryId)),
         el('span', { class: 'grow fin-main' },
           el('span', { class: 'item-name' }, x.name),
           el('span', { class: 'hint' }, `Nachkaufen ab ${s.min || 0}${onList(x.name) ? ' · steht auf der Liste' : ''}`)),
         el('span', { class: 'stock-count' }, el('b', null, Number.isFinite(s.count) ? String(s.count) : '–'), ` / ${s.target || 0}`))];
     });
-    root.replaceChildren(
-      el('div', { class: 'page-head' },
-        el('button', { class: 'icon-btn back-btn', type: 'button', 'aria-label': 'Zurück zum Einkauf', onclick: back }, '‹'),
-        el('h2', null, 'Vorrat')),
+    listBox.replaceChildren(
       el('div', { class: 'stock-head card' },
         el('span', { class: 'hint' }, 'Letzte Prüfung'),
         el('strong', null, checkedText())),
-      el('button', { class: 'btn primary wide stock-check-btn', type: 'button', disabled: !list.length, onclick: runCheck }, '✓ Vorrat aktualisieren'),
-      ...(rows.length ? rows : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Lege mit + Artikel an, die ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]),
-      el('button', { class: 'fab', type: 'button', 'aria-label': 'Neuer Vorrat-Artikel', onclick: () => openStockItem(null) }, icon('plus')));
+      ...(rows.length ? rows : [el('p', { class: 'empty' }, 'Noch nichts im Vorrat. Tippe oben einen Artikel ein, den ihr immer zu Hause haben wollt, z. B. Klopapier oder Hafermilch.')]));
+    if (search.value.trim()) renderSuggest();
   };
+  root.replaceChildren(
+    el('div', { class: 'page-head' },
+      el('button', { class: 'icon-btn back-btn', type: 'button', 'aria-label': 'Zurück zum Einkauf', onclick: back }, '‹'),
+      el('h2', null, 'Vorratsplaner')),
+    el('div', { class: 'search-wrap' }, search),
+    suggestBox, listBox, fab);
   draw();
   return subscribe(draw);
 }
 
 /* Vorrat-Artikel anlegen oder bearbeiten */
-function openStockItem(entry) {
+function openStockItem(entry, preset) {
   const s = (entry && entry.stock) || {};
-  openSheet(entry ? entry.name : 'Neuer Vorrat-Artikel', (body, close) => {
-    const name = el('input', { type: 'text', value: entry ? entry.name : '', placeholder: 'z. B. Hafermilch', autocomplete: 'off', autocapitalize: 'sentences', enterkeyhint: 'next' });
+  const pre = preset || {};
+  openSheet(entry ? entry.name : 'Neu im Vorrat', (body, close) => {
+    const name = el('input', { type: 'text', value: entry ? entry.name : (pre.name || ''), placeholder: 'z. B. Hafermilch', autocomplete: 'off', autocapitalize: 'sentences', enterkeyhint: 'next' });
     const sugg = el('div', { class: 'suggest stock-sugg hidden' });
-    const cat = el('select', null, ...state.settings.categories.map((c) => el('option', { value: c.id, selected: c.id === (entry ? entry.categoryId : 'sonstiges') }, `${c.icon} ${c.name}`)));
+    const cat = el('select', null, ...state.settings.categories.map((c) => el('option', { value: c.id, selected: c.id === catOf(entry ? entry.categoryId : (pre.categoryId || 'sonstiges')).id }, `${c.icon} ${c.name}`)));
     const pick = (e) => {
       name.value = e.name;
       cat.value = catOf(e.categoryId).id;
@@ -316,6 +357,10 @@ function openStockItem(entry) {
       el('option', { value: '' }, 'Alle Läden'),
       ...state.settings.stores.map((x) => el('option', { value: x.id, selected: x.id === s.store }, `Nur ${x.name}`)));
     const err = el('p', { class: 'form-info bad' });
+    const snap = () => [name.value.trim(), cat.value, target.value, min.value, place.value, store.value].join('|');
+    const start = snap();
+    let saved = false;
+    body.guard = () => !saved && (!entry || snap() !== start);
     body.closest('.sheet').classList.add('tall');
     body.append(
       el('div', { class: 'stock-name' }, el('label', null, 'Artikel', name), sugg),
@@ -327,7 +372,7 @@ function openStockItem(entry) {
       err,
       el('div', { class: 'row between actions' },
         entry ? el('button', { class: 'btn danger', type: 'button', onclick: async () => {
-          if (await confirmSheet('Aus dem Vorrat entfernen?', `„${entry.name}“ wird aus der Vorratsliste entfernt. Die Einkaufsliste bleibt unverändert.`, 'Entfernen')) { await removeStock(entry.key); close(); }
+          if (await confirmSheet('Aus dem Vorrat entfernen?', `„${entry.name}“ wird aus der Vorratsliste entfernt. Die Einkaufsliste bleibt unverändert.`, 'Entfernen')) { await removeStock(entry.key); saved = true; close(); }
         } }, 'Entfernen') : el('span'),
         el('button', { class: 'btn primary', type: 'button', onclick: async () => {
           const n = name.value.trim();
@@ -339,8 +384,9 @@ function openStockItem(entry) {
           const other = state.learned.get(key);
           if (other && other.stock && (!entry || entry.key !== key)) return (err.textContent = 'Dieser Artikel steht schon im Vorrat.');
           await saveStock(entry && entry.key, n, cat.value, { target: t, min: m, place: place.value || '', store: store.value || '' });
+          saved = true;
           close();
-        } }, 'Speichern'))
+        } }, entry ? 'Speichern' : '✓ Zum Vorrat hinzufügen'))
     );
   });
 }
@@ -388,10 +434,13 @@ function runCheck() {
       if (n !== null) {
         entered.set(x.key, n);
         setStockCount(x.key, n);
-        if (n <= (x.stock.min || 0) && !onList(x.name) && !added.includes(x.name)) {
-          addItem({ name: x.name, qty: 'Vorrat', categoryId: x.categoryId, store: x.stock.store || null });
-          added.push(x.name);
-        }
+        const need = Math.max(1, (x.stock.target || 0) - n);
+        const open = state.items.find((i) => !i.done && norm(i.name) === norm(x.name));
+        if (n <= (x.stock.min || 0)) {
+          if (!open && !added.includes(x.name)) addItem({ name: x.name, qty: `Vorrat ${need}`, categoryId: x.categoryId, store: x.stock.store || null });
+          else if (/^Vorrat\b/.test(open.qty || '')) updateItem(open.id, { qty: `Vorrat ${need}` });
+          if (!added.includes(x.name)) added.push(x.name);
+        } else if (open && /^Vorrat\b/.test(open.qty || '')) updateItem(open.id, { qty: `Vorrat ${need}` });
       }
       if (idx >= list.length - 1) return finish();
       idx++;
