@@ -6,7 +6,7 @@ import {
 import { myKey, nameOfKey, userName, removeEvent, removeIdea, restoreIdea, saveEvConfig, saveEvent, saveIdea, state, subscribe } from './store.js';
 import { PEOPLE } from './finlogic.js';
 import { avatar, keyAvatar } from './profile.js';
-import { navLink, placeField } from './places.js';
+import { mapView, placeField } from './places.js';
 import { deleteEvent, pushEvent } from './gcal.js';
 import { companyById, openCompany } from './companies.js';
 
@@ -73,7 +73,6 @@ export function openEventSheet(event, preset) {
       el('span', { class: 'who' }, keyAvatar(k, 'mini'), nameOfKey(k)), ans(e.rsvp && e.rsvp[k])));
     const guests = isVac(e) ? [] : (e.guests || []).map((g) => el('div', { class: 'row between ev-person' },
       el('span', { class: 'who' }, el('span', { class: 'avatar mini guest-av' }, g.slice(0, 1).toUpperCase()), g), ans((e.grsvp || {})[g])));
-    const hasGeo = Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lon)) && e.lat !== null && e.lon !== null;
     const rsvpRow = !isVac(e) && parts(e).includes(me)
       ? el('div', { class: 'seg' }, ...[['yes', 'Zusagen'], ['maybe', 'Vielleicht'], ['no', 'Absagen']].map(([k, l]) =>
         el('button', { type: 'button', class: 'seg-btn' + (myRsvp(e) === k ? ' active' : ''), onclick: async () => {
@@ -85,7 +84,8 @@ export function openEventSheet(event, preset) {
       el('div', { class: 'ev-view-cat' }, circle(cat, true), el('span', null, isVac(e) ? `${cat.name} ${nameOfKey(e.who || me)}` : cat.name)),
       el('div', { class: 'info-list' },
         info('Wann', rangeText(e)),
-        e.location ? info('Wo', hasGeo ? el('a', { href: navLink(e.lat, e.lon), target: '_blank', rel: 'noopener' }, e.location) : e.location) : null),
+        e.location ? info('Wo', e.location) : null),
+      e.location ? mapView(e.location, e.lat, e.lon) : null,
       e.note ? el('p', { class: 'pre ev-note' }, e.note) : null,
       rsvpRow ? el('p', { class: 'hint' }, 'Meine Antwort') : null,
       rsvpRow,

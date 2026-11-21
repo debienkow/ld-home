@@ -10,6 +10,22 @@ const labelOf = (p) => {
 
 export const navLink = (lat, lon) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
+const mapParts = (lat, lon) => {
+  const d = 0.004;
+  const bbox = [lon - d, lat - d, lon + d, lat + d].join(',');
+  return [
+    el('iframe', { referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin', src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lon}`, loading: 'lazy', title: 'Karte', tabindex: '-1' }),
+    el('a', { class: 'map-link', href: navLink(lat, lon), target: '_blank', rel: 'noopener' }, '🧭 Navigation starten')];
+};
+
+/* Karte mit Navigation (nur Ansicht); ohne Koordinaten nur der Navigationsknopf */
+export function mapView(text, lat, lon) {
+  const ok = lat != null && lon != null && lat !== '' && lon !== '' && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
+  if (ok) return el('div', { class: 'map-box' }, ...mapParts(Number(lat), Number(lon)));
+  if (!text) return null;
+  return el('div', { class: 'map-box' }, el('a', { class: 'map-link', href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener' }, '🧭 Navigation starten'));
+}
+
 export function placeField(value, geo, onChange) {
   let cur = { text: value || '', lat: geo && geo.lat != null ? Number(geo.lat) : null, lon: geo && geo.lon != null ? Number(geo.lon) : null };
   const input = el('input', { type: 'text', value: cur.text, placeholder: 'Ort oder Adresse (optional)', autocomplete: 'off' });
@@ -20,11 +36,7 @@ export function placeField(value, geo, onChange) {
 
   const drawMap = () => {
     if (!Number.isFinite(cur.lat) || !Number.isFinite(cur.lon)) return map.classList.add('hidden');
-    const d = 0.004;
-    const bbox = [cur.lon - d, cur.lat - d, cur.lon + d, cur.lat + d].join(',');
-    map.replaceChildren(
-      el('iframe', { referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin', src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${cur.lat},${cur.lon}`, loading: 'lazy', title: 'Karte', tabindex: '-1' }),
-      el('a', { class: 'map-link', href: navLink(cur.lat, cur.lon), target: '_blank', rel: 'noopener' }, '🧭 Navigation starten'));
+    map.replaceChildren(...mapParts(cur.lat, cur.lon));
     map.classList.remove('hidden');
   };
   const emit = () => onChange({ text: cur.text, lat: cur.lat ?? null, lon: cur.lon ?? null });
