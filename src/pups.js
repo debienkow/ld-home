@@ -4,7 +4,6 @@ import { PUPS } from './pups-list.js';
 import { lockSheets } from './dom.js';
 
 const PUPS_COUNT = PUPS.length;
-const SHOW_NAME = true; /* zum Testen: Dateinamen während der Party anzeigen */
 
 let last = -1;
 let current = null;
@@ -16,7 +15,7 @@ const COLORS = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#b388ff', '#ff8c42'
 const EMOJIS = ['💨', '💨', '💨', '🎉', '🎊', '✨', '🧻', '💩', '🌈', '🤢', '😂', '🦨'];
 
 /* Animationen laufen über die Web Animations API, damit sie auch bei „Bewegung reduzieren“ laufen */
-function startParty(label) {
+function startParty() {
   if (party) party.stop(true);
   const layer = document.createElement('div');
   layer.className = 'pups-party blocking';
@@ -24,7 +23,6 @@ function startParty(label) {
   poo.className = 'pups-poo';
   poo.textContent = '💩';
   layer.append(poo);
-  if (label) { const tag = document.createElement('div'); tag.className = 'pups-name'; tag.textContent = label; layer.append(tag); }
   /* Während der Party: alle Klicks, Tipps und Tasten schlucken, damit nichts versehentlich passiert */
   const swallow = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
   const EVENTS = ['click', 'dblclick', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'keydown', 'contextmenu'];
@@ -50,8 +48,9 @@ function startParty(label) {
     { transform: 'rotate(0deg) scale(1, 1)' }
   ], { duration: 420, delay: 450, iterations: Infinity, easing: 'ease-in-out' });
 
-  /* Bildschirm wackelt kurz */
-  document.body.animate([
+  /* Das oberste Fenster wackelt kurz (nicht die ganze Seite: das würde feste Fenster aus dem Bild schieben) */
+  const sheets = document.querySelectorAll('.sheet');
+  if (sheets.length) sheets[sheets.length - 1].animate([
     { transform: 'translate(0, 0)' }, { transform: 'translate(-6px, 3px) rotate(-.6deg)' },
     { transform: 'translate(6px, -3px) rotate(.6deg)' }, { transform: 'translate(-4px, -2px)' },
     { transform: 'translate(4px, 2px)' }, { transform: 'translate(0, 0)' }
@@ -113,8 +112,7 @@ export function pups() {
   if (current) current.pause();
   const audio = new Audio(`${import.meta.env.BASE_URL}sounds/pups-${String(i + 1).padStart(2, '0')}.mp3`);
   current = audio;
-  const name = `pups-${String(i + 1).padStart(2, '0')}.mp3`;
-  const stop = startParty(SHOW_NAME ? `${name} · ${PUPS[i]}` : '');
+  const stop = startParty();
   const t0 = Date.now();
   const end = () => setTimeout(stop, Math.max(0, 1400 - (Date.now() - t0))); /* mindestens 1,4 s Party */
   const fallback = setTimeout(end, 8000);
