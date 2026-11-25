@@ -117,14 +117,14 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.8); cursor: p
 /* Karten */
 .card { background: var(--card); border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); min-width: 0; }
 .card p { margin-top: 8px; }
-.card.tap { cursor: pointer; }
+.card.tap { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .card.tap:active { filter: brightness(1.12); }
 .card .item { background: var(--card-2); }
 .card-list { margin-top: 10px; }
 .card-head { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 0; margin: -2px 0 2px; min-height: 36px; text-align: left; color: var(--text); }
 .card-head .ico { color: var(--primary); }
 .card-head .more { color: var(--muted); font-size: .85rem; }
-.note-card { border-left: 4px solid var(--primary); }
+.note-card { border-left: 4px solid var(--primary); -webkit-user-select: none; user-select: none; }
 .big-number { font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .saldo-text { font-size: 1.1rem; font-weight: 600; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

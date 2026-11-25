@@ -16,6 +16,17 @@ const head = (id, title, go) =>
   el('button', { class: 'card-head', type: 'button', onclick: () => go(id) },
     icon(id), el('h2', { class: 'grow' }, title), el('span', { class: 'more' }, 'Öffnen ›'));
 
+/* Kachel: nicht markierbar; Klick auf freie Fläche löst die Aktion des Kachel-Buttons aus.
+   Eigene Buttons/Zeilen in der Kachel behalten ihre Aktion. */
+const tile = (...children) => {
+  const card = el('section', { class: 'card tap' }, ...children);
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('button, a, input, select, textarea, label')) return;
+    card.querySelector(':scope > .btn.wide')?.click();
+  });
+  return card;
+};
+
 export function mountHome(root, go) {
   function render() {
     const open = state.items.filter((i) => !i.done);
@@ -57,13 +68,13 @@ export function mountHome(root, go) {
           el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, `🏢 ${contractTitle(n.c, n.k)}`), el('span', { class: 'hint' }, `Kündigen bis ${dateDe(n.deadline)}`)),
           el('span', { class: 'amount' }, n.days === 0 ? 'heute' : `${n.days} T.`))))] : []),
       el('div', { class: 'grid' },
-        el('section', { class: 'card' },
+        tile(
           head('einkauf', 'Einkaufsliste', go),
           el('p', { class: 'big-number' }, open.length === 1 ? '1 Artikel' : `${open.length} Artikel`),
           tags.length ? el('div', { class: 'tags' }, ...tags) : null,
           !open.length ? el('p', { class: 'hint' }, 'Nichts auf der Liste.') : null,
           el('button', { class: 'btn soft wide', type: 'button', onclick: () => go('einkauf') }, open.length ? 'Liste öffnen' : '+ Artikel hinzufügen')),
-        el('section', { class: 'card' },
+        tile(
           head('finanzen', 'Finanzen', go),
           el('p', { class: 'saldo-text' }, saldo.text),
           saldo.cents ? el('p', { class: 'big-number' }, fmt(saldo.cents)) : null,
@@ -73,14 +84,14 @@ export function mountHome(root, go) {
               el('span', { class: 'grow fin-main' }, el('span', { class: 'item-name' }, x.title), el('span', { class: 'hint' }, `fällig seit ${dateDe(x.date)} · verbuchen oder löschen`)),
               el('span', { class: 'amount' }, fmt(x.cents)))))] : []),
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEntrySheet() }, '+ Neuer Eintrag')),
-        el('section', { class: 'card' },
+        tile(
           head('events', 'Nächste Events', go),
           ...(pending.length ? [sub(`Ausstehende Einladungen (${pending.length})`), rows(pending)] : []),
           ...(rest.length ? [sub('Nächstes Event'), rows(rest.slice(0, 1))] : [el('p', { class: 'hint card-sub' }, pending.length ? 'Sonst keine anstehenden Termine.' : 'Keine anstehenden Termine.')]),
           ...(rest.length > 1 ? [sub('Demnächst'), rows(rest.slice(1, 4))] : []),
           ...(vacs.length ? [sub('Urlaube'), rows(vacs)] : []),
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openEventSheet() }, '+ Neuer Termin')),
-        el('section', { class: 'card' },
+        tile(
           head('dms', 'Neueste Dokumente', go),
           el('div', { class: 'card-list' }, ...(docs.length ? docs.map(docRow) : [el('p', { class: 'hint' }, 'Noch keine Dokumente.')])),
           el('button', { class: 'btn primary wide', type: 'button', onclick: () => openDocSheet() }, '📷 Dokument aufnehmen')))
