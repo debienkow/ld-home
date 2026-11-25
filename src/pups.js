@@ -1,6 +1,10 @@
 /* Easter-Egg: spielt eine zufällige echte Pups-Aufnahme (public/sounds, Quellen in public/sounds/QUELLEN.txt)
    und zeigt dazu einen tanzenden Kothaufen mit Konfetti, solange der Sound läuft. */
-import { PUPS_COUNT } from './pups-list.js';
+import { PUPS } from './pups-list.js';
+import { lockSheets } from './dom.js';
+
+const PUPS_COUNT = PUPS.length;
+const SHOW_NAME = true; /* zum Testen: Dateinamen während der Party anzeigen */
 
 let last = -1;
 let current = null;
@@ -12,14 +16,25 @@ const COLORS = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d96ff', '#b388ff', '#ff8c42'
 const EMOJIS = ['💨', '💨', '💨', '🎉', '🎊', '✨', '🧻', '💩', '🌈', '🤢', '😂', '🦨'];
 
 /* Animationen laufen über die Web Animations API, damit sie auch bei „Bewegung reduzieren“ laufen */
-function startParty() {
+function startParty(label) {
   if (party) party.stop(true);
   const layer = document.createElement('div');
-  layer.className = 'pups-party';
+  layer.className = 'pups-party blocking';
   const poo = document.createElement('div');
   poo.className = 'pups-poo';
   poo.textContent = '💩';
   layer.append(poo);
+  if (label) { const tag = document.createElement('div'); tag.className = 'pups-name'; tag.textContent = label; layer.append(tag); }
+  /* Während der Party: alle Klicks, Tipps und Tasten schlucken, damit nichts versehentlich passiert */
+  const swallow = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
+  const EVENTS = ['click', 'dblclick', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'keydown', 'contextmenu'];
+  for (const t of EVENTS) window.addEventListener(t, swallow, { capture: true, passive: false });
+  /* Zurück-Geste ebenfalls abfangen: Fenster bleibt offen */
+  lockSheets(true);
+  const release = () => {
+    for (const t of EVENTS) window.removeEventListener(t, swallow, { capture: true });
+    lockSheets(false);
+  };
   document.documentElement.append(layer);
 
   poo.animate([
@@ -76,13 +91,14 @@ function startParty() {
     done = true;
     clearInterval(timer);
     if (party && party.stop === stop) party = null;
-    if (now) { layer.remove(); return; }
+    if (now) { release(); layer.remove(); return; }
     wobble.cancel();
     poo.animate([
       { transform: 'scale(1) rotate(0deg)', opacity: 1 },
       { transform: 'scale(1.25) rotate(20deg)', opacity: 1, offset: 0.3 },
       { transform: 'scale(0) rotate(540deg)', opacity: 0 }
     ], { duration: 420, easing: 'ease-in', fill: 'forwards' });
+    setTimeout(() => { release(); layer.classList.remove('blocking'); }, 450); /* Sperre endet, wenn der Haufen weg ist */
     setTimeout(() => layer.remove(), 2100);
   };
   party = { stop };
@@ -97,7 +113,8 @@ export function pups() {
   if (current) current.pause();
   const audio = new Audio(`${import.meta.env.BASE_URL}sounds/pups-${String(i + 1).padStart(2, '0')}.mp3`);
   current = audio;
-  const stop = startParty();
+  const name = `pups-${String(i + 1).padStart(2, '0')}.mp3`;
+  const stop = startParty(SHOW_NAME ? `${name} · ${PUPS[i]}` : '');
   const t0 = Date.now();
   const end = () => setTimeout(stop, Math.max(0, 1400 - (Date.now() - t0))); /* mindestens 1,4 s Party */
   const fallback = setTimeout(end, 8000);

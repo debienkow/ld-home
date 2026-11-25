@@ -72,7 +72,14 @@ export function toast(text, opts = {}) {
 /* Unten einfahrendes Fenster; Zurück-Geste und Esc schließen das oberste Fenster */
 const sheetStack = [];
 let ignorePops = 0;
+let sheetLock = false;
+/* Solange gesperrt, schließt die Zurück-Geste kein Fenster (z. B. während des Easter-Eggs) */
+export const lockSheets = (on) => { sheetLock = on; };
 window.addEventListener('popstate', () => {
+  if (sheetLock && ignorePops <= 0) {
+    if (sheetStack.length) history.pushState({ ldSheet: true }, '');
+    return;
+  }
   if (ignorePops > 0) {
     ignorePops--;
     if (sheetStack.length && !(history.state && history.state.ldSheet)) history.pushState({ ldSheet: true }, '');
