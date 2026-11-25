@@ -2,6 +2,7 @@
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase.js';
 import { confirmSheet, el, openSheet, shrinkImage, toast } from './dom.js';
+import { tapCounter } from './pups.js';
 import { saveProfile, saveProfilePhoto, state, uidOfKey, userName } from './store.js';
 
 export function avatar(uid, size = '') {
@@ -18,6 +19,7 @@ export function openProfile() {
   const u = state.user;
   openSheet('Profil', (body, close) => {
     const holder = el('div', { class: 'avatar-holder' }, avatar(u.uid, 'big'));
+    holder.addEventListener('click', tapCounter()); /* Easter-Egg: 5× tippen */
     const file = el('input', {
       type: 'file',
       accept: 'image/*',
