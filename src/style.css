@@ -549,3 +549,7 @@ html.ios.kb-open .sheet { border-bottom-left-radius: 0; border-bottom-right-radi
 .fab.text { width: auto; display: flex; align-items: center; gap: 8px; padding: 0 20px 0 16px; font: inherit; font-weight: 700; font-size: 1rem; }
 .build-info { text-align: center; font-size: .78rem; margin-top: 4px; }
 .avatar-holder { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+/* Easter-Egg: Kothaufen-Party */
+.pups-party { position: fixed; inset: 0; z-index: 1000; pointer-events: none; overflow: hidden; display: grid; place-items: center; }
+.pups-poo { font-size: min(46vmin, 320px); line-height: 1; filter: drop-shadow(0 12px 24px rgba(0, 0, 0, .45)); will-change: transform; }
+.pups-bit { position: fixed; line-height: 1; will-change: transform, opacity; }
