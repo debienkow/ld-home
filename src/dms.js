@@ -73,16 +73,52 @@ function openPageView(imgs, start) {
     const img = el('img', { alt: '' });
     const prev = el('button', { class: 'viewer-nav prev', type: 'button', 'aria-label': 'Vorherige Seite', onclick: () => go(-1) }, '‹');
     const next = el('button', { class: 'viewer-nav next', type: 'button', 'aria-label': 'Nächste Seite', onclick: () => go(1) }, '›');
-    const show = () => { img.src = imgs[i]; img.alt = `Seite ${i + 1}`; head.textContent = `Seite ${i + 1} von ${imgs.length}`; prev.disabled = i === 0; next.disabled = i === imgs.length - 1; };
+    /* Eigener Zoom: zwei Finger vergrößern, ein Finger verschiebt (wenn vergrößert), Doppeltipp schaltet um */
+    let scale = 1, tx = 0, ty = 0;
+    const clampPan = () => {
+      const w = img.offsetWidth, h = img.offsetHeight;
+      const mx = Math.max(0, (w * scale - stage.clientWidth) / 2), my = Math.max(0, (h * scale - stage.clientHeight) / 2);
+      tx = Math.min(mx, Math.max(-mx, tx)); ty = Math.min(my, Math.max(-my, ty));
+    };
+    const apply = () => { img.style.transform = scale === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${scale})`; };
+    const reset = () => { scale = 1; tx = 0; ty = 0; apply(); };
+    const show = () => { reset(); img.src = imgs[i]; img.alt = `Seite ${i + 1}`; head.textContent = `Seite ${i + 1} von ${imgs.length}`; prev.disabled = i === 0; next.disabled = i === imgs.length - 1; };
     const go = (d) => { const j = i + d; if (j < 0 || j >= imgs.length) return; i = j; show(); };
     const stage = el('div', { class: 'viewer-stage' }, img, prev, next);
-    let x0 = null, y0 = 0;
-    stage.addEventListener('touchstart', (e) => { if (e.touches.length === 1) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } else x0 = null; }, { passive: true });
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    let x0 = null, y0 = 0, pinch = null, pan = null, lastTap = 0;
+    stage.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button')) return;
+      if (e.touches.length === 2) { pinch = { d: dist(e.touches), s: scale }; pan = null; x0 = null; img.classList.add('live'); }
+      else if (e.touches.length === 1) {
+        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+        pan = scale > 1 ? { x: tx, y: ty } : null;
+        if (pan) img.classList.add('live');
+      }
+    }, { passive: true });
+    stage.addEventListener('touchmove', (e) => {
+      if (pinch && e.touches.length === 2) {
+        scale = Math.min(5, Math.max(1, pinch.s * dist(e.touches) / pinch.d));
+        clampPan(); apply(); e.preventDefault();
+      } else if (pan && e.touches.length === 1) {
+        tx = pan.x + e.touches[0].clientX - x0; ty = pan.y + e.touches[0].clientY - y0;
+        clampPan(); apply(); e.preventDefault();
+      }
+    }, { passive: false });
     stage.addEventListener('touchend', (e) => {
+      if (e.touches.length) return;
+      img.classList.remove('live');
+      if (pinch) { pinch = null; if (scale < 1.05) reset(); return; }
       if (x0 === null) return;
       const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
       x0 = null;
-      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+      const wasPan = pan; pan = null;
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+        const now = Date.now();
+        if (now - lastTap < 300) { if (scale > 1) reset(); else { scale = 2.5; apply(); } lastTap = 0; } else lastTap = now;
+        return;
+      }
+      if (!wasPan && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
     });
     const key = (e) => { if (!stage.isConnected) return document.removeEventListener('keydown', key); if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); };
     document.addEventListener('keydown', key);

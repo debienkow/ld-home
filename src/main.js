@@ -5,6 +5,16 @@ import { auth } from './firebase.js';
 import { USERS } from './config.js';
 import { el, icon } from './dom.js';
 import './pickers.js';
+
+/* Installierte App: Zoomen der Seite (zwei Finger, Doppeltipp) unterbinden.
+   Dokumente lassen sich im Betrachter weiter mit zwei Fingern vergrößern (eigener Zoom). */
+if (navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches) {
+  document.documentElement.classList.add('app');
+  const vp = document.querySelector('meta[name=viewport]');
+  if (vp && !/user-scalable/.test(vp.content)) vp.content += ', maximum-scale=1, user-scalable=no';
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+}
 import { renderLogin } from './login.js';
 import { startStore, state, stopStore, subscribe } from './store.js';
 import { avatar, openProfile } from './profile.js';

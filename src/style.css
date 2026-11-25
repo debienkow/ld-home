@@ -29,6 +29,7 @@ html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--top); }
 html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 body { min-height: 100dvh; overscroll-behavior-y: none; }
 body.no-scroll { overflow: hidden; }
+html.app, html.app body { touch-action: pan-x pan-y; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; touch-action: manipulation; }
 .hidden { display: none !important; }
@@ -461,8 +462,9 @@ html.typing .sheet-body { padding-bottom: 55vh; }
 .sheet.viewer { max-width: none; width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; background: #000; display: flex; flex-direction: column; }
 .sheet.viewer .sheet-head { background: #000; border-radius: 0; }
 .sheet.viewer .sheet-body { flex: 1; display: flex; padding: 0; min-height: 0; }
-.viewer-stage { position: relative; flex: 1; display: grid; place-items: center; overflow: hidden; touch-action: pan-y pinch-zoom; }
-.viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transition: transform .18s ease-out; }
+.viewer-stage { position: relative; flex: 1; display: grid; place-items: center; overflow: hidden; touch-action: none; }
+.viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transition: transform .18s ease-out; transform-origin: center; }
+.viewer-stage img.live { transition: none; }
 .viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 64px; border: 0; border-radius: 12px; background: rgba(0,0,0,.5); color: #fff; font-size: 2rem; cursor: pointer; }
 .viewer-nav.prev { left: 8px; } .viewer-nav.next { right: 8px; }
 .viewer-nav:disabled { opacity: 0; pointer-events: none; }
